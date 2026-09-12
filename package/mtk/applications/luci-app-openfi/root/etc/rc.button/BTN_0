@@ -1,0 +1,6 @@
+#!/bin/sh
+[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = 'openfi,6c' ] || exit 0
+case "$ACTION" in
+    pressed) /usr/sbin/op_switch.sh on;;
+    released) /usr/sbin/op_switch.sh off;;
+esac

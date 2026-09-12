@@ -1,0 +1,82 @@
+<style>
+#cbi-openfi { --of-accent:#0c8277; --of-line:rgba(125,140,150,.24); }
+#cbi-openfi .cbi-section { border:1px solid var(--of-line); border-radius:14px; padding:22px; margin:20px 0; box-shadow:none; }
+#cbi-openfi .cbi-section h3 { font-size:18px; margin:0 0 16px; }
+#cbi-openfi .cbi-value-description { max-width:650px; line-height:1.65; opacity:.75; }
+#cbi-openfi .of-hero { border:1px solid var(--of-line); border-radius:16px; padding:24px; margin:24px 0; background:linear-gradient(115deg,rgba(12,130,119,.10),transparent 75%); }
+#cbi-openfi .of-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:24px; }
+#cbi-openfi .of-eyebrow { font-size:12px; letter-spacing:.15em; color:var(--of-accent); font-weight:600; }
+#cbi-openfi .of-subtitle { margin-top:6px; opacity:.7; font-size:13px; }
+#cbi-openfi .of-badge { border-radius:30px; padding:6px 12px; background:rgba(12,130,119,.1); font-size:12px; }
+#cbi-openfi .of-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+#cbi-openfi .of-metric + .of-metric { border-left:1px solid var(--of-line); padding-left:24px; }
+#cbi-openfi .of-label { font-size:13px; opacity:.7; margin-bottom:10px; }
+#cbi-openfi .of-number { font-size:34px; line-height:1.2; font-weight:600; font-variant-numeric:tabular-nums; }
+#cbi-openfi .of-note { font-size:12px; opacity:.65; margin-top:8px; }
+#cbi-openfi .of-health { margin-top:22px; padding-top:16px; border-top:1px solid var(--of-line); font-size:13px; }
+#cbi-openfi .of-range { display:flex; align-items:center; gap:14px; max-width:480px; }
+#cbi-openfi .of-range input[type=range] { flex:1; min-width:100px; accent-color:var(--of-accent); }
+#cbi-openfi .of-range input[type=number] { width:80px; }
+#cbi-openfi .of-curve { max-width:650px; padding:16px; border:1px solid var(--of-line); border-radius:12px; }
+#cbi-openfi .of-curve svg { width:100%; height:auto; overflow:visible; }
+#cbi-openfi .of-curve text { fill:currentColor; font-size:12px; }
+#cbi-openfi .of-curve p { margin:8px 0 0; font-size:12px; opacity:.7; line-height:1.6; }
+@media(max-width:600px) {
+ #cbi-openfi .of-hero,#cbi-openfi .cbi-section { padding:16px; }
+ #cbi-openfi .of-metrics { gap:12px; }
+ #cbi-openfi .of-metric + .of-metric { padding-left:12px; }
+ #cbi-openfi .of-number { font-size:25px; }
+ #cbi-openfi .of-heading { align-items:flex-start; }
+}
+</style>
+<div class="of-hero">
+ <div class="of-heading">
+  <div><div class="of-eyebrow">OPENFI 6C / COOLING</div><div class="of-subtitle">仅以 CPU 温度调速 · 双路 PWM 同步控制</div></div>
+  <span id="of-mode" class="of-badge">正在连接</span>
+ </div>
+ <div class="of-metrics">
+  <div class="of-metric"><div class="of-label">CPU 温度</div><div id="of-cpu" class="of-number">—</div><div class="of-note">片上温度传感器</div></div>
+  <div class="of-metric"><div class="of-label">当前输出</div><div id="of-output" class="of-number">—</div><div class="of-note">PWM 输出比例，非实测转速</div></div>
+  <div class="of-metric"><div class="of-label">目标输出</div><div id="of-target" class="of-number">—</div><div class="of-note">随温控策略计算</div></div>
+ </div>
+ <div id="of-health" class="of-health" role="status" aria-live="polite">正在读取风扇服务状态…</div>
+</div>
+<script type="text/javascript">
+(function() {
+ var received = 0;
+ function text(id, value) { document.getElementById(id).textContent = value; }
+ function unavailable(message) {
+   text('of-cpu', '—'); text('of-output', '—'); text('of-target', '—');
+   text('of-mode', '状态不可用'); text('of-health', message);
+ }
+ var reasons = {
+   auto:'自动温控运行中，升温加速、降温缓降。',
+   manual:'手动输出运行中，CPU 高温保护仍然生效。',
+   overheat:'CPU 已达到满速温度，风扇强制全速散热。',
+   sensor_fault:'CPU 温度读取失败，已请求全速保护。',
+   pwm_fault:'PWM 控制异常，无法确认输出，请检查风扇服务。',
+   stopped:'风扇服务已停止，退出前已请求全速。',
+   starting:'正在全速助推，帮助风扇可靠启动。'
+ };
+ XHR.poll(3, '<%=luci.dispatcher.build_url("admin", "openfi", "openfi6", "status")%>', null, function(xhr, data) {
+   received = Date.now();
+   if (!data) { unavailable('状态接口未返回数据，请刷新页面后重试。'); return; }
+   if (data.stale) {
+     unavailable(!data.pwm_present ? '未找到 PWM 控制器，请检查内核和设备树。' :
+       !data.running ? '风扇进程未运行。请检查 OpenFi 启动项及系统日志中的 openfi-fan 错误。' :
+       '风扇进程正在运行，但状态未更新。请检查 PWM 初始化和系统日志。');
+     text('of-cpu', typeof data.cpu === 'number' ? data.cpu + '°C' : '—');
+     return;
+   }
+   text('of-mode', data.mode === 'manual' ? '手动模式' : '自动温控');
+   text('of-cpu', typeof data.cpu === 'number' ? data.cpu + '°C' : '—');
+   text('of-output', data.reason === 'pwm_fault' ? '—' : data.output + '%');
+   text('of-target', data.target + '%');
+   text('of-health', reasons[data.reason] || '正在更新状态…');
+ });
+ window.setInterval(function() {
+   if (!received || Date.now() - received > 15000)
+     unavailable('连接中断或服务尚未就绪，显示值已清空。');
+ }, 15000);
+})();
+</script>

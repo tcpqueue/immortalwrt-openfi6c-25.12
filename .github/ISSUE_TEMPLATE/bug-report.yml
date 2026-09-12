@@ -1,0 +1,51 @@
+name: 问题反馈
+description: 反馈 OpenFi 6C 固件、设备管理或 ECM / RNDIS 上网问题
+body:
+  - type: input
+    id: version
+    attributes:
+      label: 固件版本
+      description: 填写 Release 日期或自行编译的提交号。
+      placeholder: 2026-09-12 / 提交号
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: 固件来源
+      options:
+        - 本仓库 Release
+        - 自行编译
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: 硬件版本
+      description: OpenFi 6C 第一版 / 第二版；不确定时可填写未知。
+    validations:
+      required: true
+  - type: textarea
+    id: modem
+    attributes:
+      label: 5G 模块信息
+      description: 涉及模块上网时，填写模块型号、模块固件版本、ECM / RNDIS 模式和网络接口名称。
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 问题与复现步骤
+      description: 描述操作步骤、实际现象和期望结果；升级后是否保留了旧配置。
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志或截图
+      description: 可附 logread、dmesg 或页面截图，请先移除密码、令牌和个人信息。
+      render: text
+  - type: textarea
+    id: config
+    attributes:
+      label: 编译配置与其他改动
+      description: 自行编译时可附 scripts/diffconfig.sh 输出，以及调整过的插件或网络配置。
+      render: text

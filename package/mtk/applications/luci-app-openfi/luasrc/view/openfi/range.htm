@@ -1,0 +1,14 @@
+<%+cbi/valueheader%>
+<% local v = tonumber(self:formvalue(section) or self:cfgvalue(section) or self.default) or 55
+   local minimum = self.minimum or 0 %>
+<div class="of-range">
+  <input type="range" min="<%=minimum%>" max="100" step="1" value="<%=v%>"
+    aria-label="<%=pcdata(self.title)%>"
+    oninput="var n=this.parentNode.querySelector('input[type=number]');n.value=this.value;n.dispatchEvent(new Event('input',{bubbles:true}));"
+  />
+  <input type="number" id="<%=cbid%>" name="<%=cbid%>" min="<%=minimum%>" max="100" step="1"
+    value="<%=v%>" required="required" aria-label="<%=pcdata(self.title)%>"
+    oninput="this.parentNode.querySelector('input[type=range]').value=this.value;"
+  /><span>%</span>
+</div>
+<%+cbi/valuefooter%>

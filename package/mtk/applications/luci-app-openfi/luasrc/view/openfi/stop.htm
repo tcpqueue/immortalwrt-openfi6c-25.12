@@ -1,0 +1,4 @@
+<%+cbi/valueheader%>
+<input type="hidden" name="cbi.cbe.<%=self.config%>.<%=section%>.<%=self.option%>" value="1" />
+<input type="checkbox" id="<%=cbid%>" name="<%=cbid%>" value="1"<% if (self:cfgvalue(section) or self.default) == "1" then %> checked="checked"<% end %> />
+<%+cbi/valuefooter%>

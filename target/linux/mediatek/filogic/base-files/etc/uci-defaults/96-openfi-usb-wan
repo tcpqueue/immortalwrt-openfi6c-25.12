@@ -1,0 +1,19 @@
+#!/bin/sh
+[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = 'openfi,6c' ] || exit 0
+/etc/init.d/openfi-usb-wan enable
+# Only initialize the new profile. Existing custom uplinks keep their settings.
+case "$(uci -q get network.wan.device)" in
+    ''|usb0)
+        case "$(uci -q get network.wan.proto)" in ''|dhcp) ;; *) exit 0;; esac
+        uci set network.wan=interface
+        uci set network.wan.device='usb0'
+        uci set network.wan.proto='dhcp'
+        uci set network.wan.openfi_usb_auto='1'
+        uci set network.wan.openfi_usb_device='usb0'
+        uci set network.wan6=interface
+        uci set network.wan6.device='@wan'
+        uci set network.wan6.proto='dhcpv6'
+        uci commit network
+        ;;
+esac
+exit 0

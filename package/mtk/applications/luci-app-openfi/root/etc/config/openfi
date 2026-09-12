@@ -1,0 +1,23 @@
+config fan 'fan'
+	option temp1 '55'
+	option speed1 '55'
+	option temp2 '58'
+	option speed2 '70'
+	option temp3 '61'
+	option speed3 '85'
+	option temp4 '65'
+	option speed4 '100'
+	option emergency_temp '85'
+	option fan_stop '1'
+	option period "5"
+	option mode 'auto'
+	option min_speed '5'
+	option manual_speed '55'
+
+config switch 'switch'
+	option func '0'
+	option power "1"
+	option led "1"
+
+config modem 'reset'
+	option state '1'

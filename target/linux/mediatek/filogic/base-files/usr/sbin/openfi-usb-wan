@@ -1,0 +1,38 @@
+#!/bin/sh
+[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = 'openfi,6c' ] || exit 0
+lock=/var/run/openfi-usb-wan.lock
+mkdir "$lock" 2>/dev/null || exit 0
+trap 'rmdir "$lock"' EXIT
+[ "$(uci -q get network.wan.openfi_usb_auto)" = 1 ] || exit 0
+[ "$(uci -q get network.wan.proto)" = dhcp ] || exit 0
+current=$(uci -q get network.wan.device)
+managed=$(uci -q get network.wan.openfi_usb_device)
+# A manual device change relinquishes automatic selection.
+[ "$current" = "$managed" ] || exit 0
+
+is_usb_ethernet() {
+    local device driver
+    [ "$1" != eth0 ] || return 1
+    device=$(readlink -f "/sys/class/net/$1/device")
+    case "$device" in */usb[0-9]*/*) ;; *) return 1;; esac
+    driver=$(readlink -f "/sys/class/net/$1/device/driver")
+    case "${driver##*/}" in
+        rndis_host|cdc_ether|cdc_ncm|huawei_cdc_ncm) return 0;;
+    esac
+    # QMI/MBIM need a control protocol; do not treat them as DHCP Ethernet.
+    return 1
+}
+
+is_usb_ethernet "$current" && exit 0
+for path in /sys/class/net/*; do
+    candidate=${path##*/}
+    is_usb_ethernet "$candidate" || continue
+    uci set "network.wan.device=$candidate"
+    uci set "network.wan.openfi_usb_device=$candidate"
+    uci commit network
+    logger -t openfi-usb-wan "WAN DHCP device: $candidate"
+    # During boot network has not started; later hotplug needs a config reload.
+    [ "$1" = boot ] || ubus call network reload >/dev/null 2>&1
+    break
+done
+exit 0

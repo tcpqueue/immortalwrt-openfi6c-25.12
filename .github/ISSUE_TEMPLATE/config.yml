@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 固件下载与升级说明
+    url: https://github.com/tcpqueue/immortalwrt-openfi6c-25.12/releases
+    about: 查看 OpenFi 6C 固件、软件清单和校验和。
+  - name: OpenWrt 使用文档
+    url: https://openwrt.org/docs/start
+    about: 查询网络、存储和基础服务的配置方法。

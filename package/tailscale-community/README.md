@@ -1,0 +1,140 @@
+# LuCI App for Tailscale (Community)
+
+<p align="center">
+  <img src="https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community/actions/workflows/build.yml/badge.svg" alt="构建状态">
+  <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="许可证">
+  <img src="https://img.shields.io/badge/OpenWrt-24.10.3-orange.svg" alt="OpenWrt 版本">
+</p>
+
+<p align="center">
+  <a href="https://github.com/features/actions">
+    <img src="https://img.shields.io/badge/Powered%20by-GitHub%20Actions-blue?logo=github-actions" alt="Powered by GitHub Actions">
+  </a>
+  <a href="https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community/issues">
+    <img src="https://img.shields.io/github/issues/Tokisaki-Galaxy/luci-app-tailscale-community" alt="GitHub issues">
+  </a>
+   <a href="https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community/stargazers">
+    <img src="https://img.shields.io/github/stars/Tokisaki-Galaxy/luci-app-tailscale-community" alt="GitHub stars">
+  </a>
+  <a href="https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community/releases">
+    <img src="https://img.shields.io/github/downloads/Tokisaki-Galaxy/luci-app-tailscale-community/total" alt="GitHub downloads">
+  </a>
+</p>
+
+<p align="center">
+  <a href="README.CN.md"><img src="https://img.shields.io/badge/简体中文-brightgreen.svg" alt="简体中文"></a>
+  <a href="README.md"><img src="https://img.shields.io/badge/English-blue.svg" alt="English"></a>
+</p>
+
+A community-maintained LuCI application for managing Tailscale on OpenWrt. This app provides a user-friendly web interface to view Tailscale status and configure its settings directly from LuCI.
+
+> [!TIP]
+> This application has been merged into the official OpenWrt LuCI repository. You can now install it directly via the official `opkg` source. See [openwrt/luci#8018](https://github.com/openwrt/luci/pull/8018) for details.
+
+> [!IMPORTANT]
+> Recommended Version: OpenWrt 23.05 or later.
+
+Note: This application uses `ucode` as the backend server. Older versions of OpenWrt primarily support Lua-based backends and cannot run the `ucode` backend logic used by this app.
+
+## Features
+
+- **Status Dashboard**:
+  - View the running status of the Tailscale service.
+  - Display your device's Tailscale IPv4 and IPv6 addresses.
+  - See your Tailnet name.
+  - A detailed list of all network devices (peers), including:
+    - Online/Offline status.
+    - Hostname and DNS name.
+    - Tailscale IPs.
+    - Operating System.
+    - Connection type (e.g., Direct, Relay).
+    - Last seen time for offline devices.
+
+- **Node Settings**:
+  - Instantly apply settings using the `tailscale set` command without a service restart.
+  - Toggle `Accept Routes`.
+  - Toggle `Advertise as Exit Node`.
+  - Configure `Advertise Routes`.
+  - Set a specific `Exit Node` to use.
+  - Toggle `Allow LAN Access` when using an exit node.
+  - Enable/disable SNAT for subnet routes.
+  - Enable/disable the built-in SSH server.
+  - Toggle `Shields Up` mode.
+  - Set a custom hostname.
+
+- **Daemon Environment Settings**:
+  - Configure environment variables for the Tailscale daemon (requires a service restart).
+  - Set a custom MTU for problematic networks.
+  - Enable a memory reduction mode for resource-constrained devices.
+
+## Screenshots
+
+**Status Page**
+![Status Page Screenshot](image/status.png)
+
+**Settings Page**
+![Settings Page Screenshot](image/setting.png)
+
+## Installation
+
+### Method 1: Official OpenWrt Software Source (Recommended)
+
+If you are using OpenWrt Snapshot, Master, or a future stable release (strictly version > `OpenWrt 25.12.0-rc3`), you can install it directly from the official repository:
+
+```bash
+opkg update
+opkg install luci-app-tailscale-community
+```
+
+> [!TIP]
+> The `tailscale` package in official OpenWrt repositories is tied to specific OpenWrt releases and does not receive updates once a version is finalized. Given Tailscale's frequent update cycle, older versions may have security vulnerabilities. For a smaller binary size and timely updates, it is highly recommended to use the [GuNanOvO/openwrt-tailscale](https://github.com/GuNanOvO/openwrt-tailscale/blob/main/.github/README_en.md) repository. You can easily install a high-version, optimized Tailscale package by simply importing the key and adding the custom opkg source.
+
+### Method 2: Community Software Source (GitHub Pages)
+
+If you are using an older version of OpenWrt or want to use the latest community-specific builds, you can add a custom repository. This method also supports automatic updates.
+
+1.  **Add the software source**:
+    Run the following commands in the router terminal:
+    ```bash
+    # Download and add the public key
+    wget https://Tokisaki-Galaxy.github.io/luci-app-tailscale-community/all/key-build.pub -O /tmp/key-build.pub
+    opkg-key add /tmp/key-build.pub
+    # Add the software source
+    echo "src/gz tailscale_community https://Tokisaki-Galaxy.github.io/luci-app-tailscale-community/all" >> /etc/opkg/customfeeds.conf
+    # Update the list
+    opkg update
+    ```
+
+2.  **Install the plugin**:
+    ```bash
+    opkg install luci-app-tailscale-community
+    ```
+
+> [!TIP]
+> After installing this way, you can update the plugin later using `opkg upgrade luci-app-tailscale-community`.
+
+### Method 3: Manual Installation (.ipk)
+
+1. download the latest and stable `. ipk` software package from [Github Release](https://github.com/tokisaki-galaxy/Luci-app-tailscale-community/releases).
+ - If you have special requirements, you can also download the latest `. ipk` software package for debugging purposes from [Github Actions Artifacts](https://github.com/actions).
+2.  Transfer the `.ipk` file to your OpenWrt router (e.g., using `scp`).
+3.  Install the package using `opkg`:
+
+```bash
+opkg install luci-app-tailscale-community_*.ipk
+```
+
+After installation, you should find the "Tailscale" menu under the "Services" tab in LuCI.
+
+## Building from Source
+
+You can also build the package yourself using the OpenWrt SDK. The build process is defined in the [`.github/workflows/build.yml`](.github/workflows/build.yml) file, which can be used as a reference.
+
+1.  Clone the OpenWrt SDK.
+2.  Clone this repository into the `package/` directory of the SDK.
+3.  Run `make menuconfig` and select `luci-app-tailscale-community` under `LuCI` -> `Applications`.
+4.  Run `make` to compile the package.
+
+## License
+
+This project is licensed under the Apache 2.0 License. See the [LICENSE](LICENSE) file for details.

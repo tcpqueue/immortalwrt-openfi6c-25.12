@@ -1,0 +1,9 @@
+#!/bin/sh
+# Retire the old LAN/WAN switch action without changing network defaults.
+case "$(uci -q get openfi.switch.func)" in
+    0|2|3) ;; *) uci set openfi.switch.func='0';;
+esac
+uci -q delete openfi.switch.lan
+uci commit openfi
+/etc/init.d/openfi enable
+exit 0

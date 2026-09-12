@@ -1,0 +1,113 @@
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+@@ -2808,6 +2808,27 @@
+ 	return act;
+ }
+ 
++/* Recirculated packets have no physical ingress GMAC. */
++static bool mtk_is_rx_ppd(u32 sport, u32 reason)
++{
++	return sport == PSE_QDMA_TX_PORT ||
++	       (reason == MTK_PPE_CPU_REASON_HIT_BIND_FORCE_CPU &&
++		(sport == PSE_WDMA0_PORT || sport == PSE_WDMA1_PORT ||
++		 sport == PSE_WDMA2_PORT));
++}
++
++static int mtk_rx_ppd_mac(struct mtk_eth *eth)
++{
++	int mac;
++
++	/* Preserve MAC0 when present; boards may expose only MAC1 or MAC2. */
++	for (mac = 0; mac < MTK_MAX_DEVS; mac++)
++		if (eth->netdev[mac])
++			break;
++
++	return mac;
++}
++
+ static int mtk_poll_rx(struct napi_struct *napi, int budget,
+ 		       struct mtk_eth *eth)
+ {
+@@ -2834,7 +2855,8 @@
+ 	while (done < budget) {
+ 		unsigned int pktlen, *rxdcsum;
+ 		struct net_device *netdev = NULL;
+-		u32 hash, reason;
++		u32 hash, reason = 0;
++		u32 sport = 0;
+ 		int mac = 0;
+ 		bool to_ppd = false;
+ 
+@@ -2845,14 +2867,15 @@
+ 		if (!mtk_rx_get_desc(eth, &trxd, rxd))
+ 			break;
+ 
+-		/* find out which mac the packet come from. values start at 1 */
++		/* Decode the source port before selecting a physical RX device. */
+ 		if (mtk_is_netsys_v3_or_greater(eth)) {
+-			u32 val = RX_DMA_GET_SPORT_V2(trxd.rxd5);
+-
+-			switch (val) {
++			sport = RX_DMA_GET_SPORT_V2(trxd.rxd5);
++			reason = FIELD_GET(MTK_RXD5_PPE_CPU_REASON, trxd.rxd5);
++
++			switch (sport) {
+ 			case PSE_GDM1_PORT:
+ 			case PSE_GDM2_PORT:
+-				mac = val - 1;
++				mac = sport - 1;
+ 				break;
+ 			case PSE_GDM3_PORT:
+ 				mac = MTK_GMAC3_ID;
+@@ -2860,21 +2883,26 @@
+ 			default:
+ 				break;
+ 			}
++		} else if (mtk_is_netsys_v2_or_greater(eth)) {
++			/* HNAT uses four source-port bits, including the WDMA ports. */
++			sport = FIELD_GET(GENMASK(22, 19), trxd.rxd4);
++			reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
++			/* Preserve the existing special-tag path for physical RX. */
++			if (!(trxd.rxd4 & RX_DMA_SPECIAL_TAG))
++				mac = RX_DMA_GET_SPORT(trxd.rxd4) - 1;
+ 		} else if (!MTK_HAS_CAPS(eth->soc->caps, MTK_SOC_MT7628) &&
+ 			   !(trxd.rxd4 & RX_DMA_SPECIAL_TAG)) {
+-			u32 sport = RX_DMA_GET_SPORT(trxd.rxd4);
+-
+-			/* if it is a from-QDMA packet, set from GMAC1 */
+-			if (unlikely(sport == PSE_QDMA_TX_PORT)) {
+-				/* sanity check */
+-				if (unlikely(!rx_ppdev))
+-					goto release_desc;
+-
+-				sport = PSE_GDM1_PORT;
+-				to_ppd = true;
+-			}
+-
++			sport = RX_DMA_GET_SPORT(trxd.rxd4);
++			reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
+ 			mac = sport - 1;
++		}
++
++		if (unlikely(mtk_is_rx_ppd(sport, reason))) {
++			if (unlikely(!rx_ppdev))
++				goto release_desc;
++
++			mac = mtk_rx_ppd_mac(eth);
++			to_ppd = true;
+ 		}
+ 
+ 		if (unlikely(mac < 0 || mac >= MTK_MAX_DEVS ||
+@@ -2993,12 +3021,6 @@
+ 				trace_printk("[%s] reason=0x%x(force to CPU) from WAN to Ext\n",
+ 					     __func__, skb_hnat_reason(skb));
+ 				skb->pkt_type = PACKET_HOST;
+-				/* sanity check, just handle WDMA ports */
+-				if (likely(rx_ppdev) &&
+-					(skb_hnat_sport(skb) == PSE_WDMA0_PORT ||
+-					 skb_hnat_sport(skb) == PSE_WDMA1_PORT ||
+-					 skb_hnat_sport(skb) == PSE_WDMA2_PORT))
+-					to_ppd = true;
+ 			}
+ 
+ 			trace_printk("[%s] rxd:(entry=%x,sport=%x,reason=%x,alg=%x\n",

@@ -1,0 +1,2 @@
+<input type="hidden" id="<%=self:cbid(section)%>" name="<%=self:cbid(section)%>" value="<%=pcdata(self:formvalue(section) or self:cfgvalue(section) or self.default or "")%>" />
+<% if self.error and self.error[section] then %><div class="cbi-value-error">温控曲线参数无效，请检查四个基准点和保护温度。</div><% end %>

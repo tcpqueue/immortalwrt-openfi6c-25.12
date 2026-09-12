@@ -1,0 +1,8 @@
+#!/bin/sh /etc/rc.common
+START=19
+boot() {
+    /usr/sbin/openfi-usb-wan boot
+}
+start() {
+    /usr/sbin/openfi-usb-wan
+}
