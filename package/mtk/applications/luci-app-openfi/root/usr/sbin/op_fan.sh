@@ -131,6 +131,8 @@ shutdown() {
     exit
 }
 main() {
+    reload_pending=0
+    trap 'reload_pending=1' HUP
     load_config
     cpu=; current=100; target=100
     trap shutdown EXIT
@@ -145,6 +147,10 @@ main() {
     # Full output for one second reliably starts a stopped fan.
     sleep 1
     while :; do
+        if [ "$reload_pending" -eq 1 ]; then
+            reload_pending=0
+            load_config
+        fi
         read_temperatures
         choose_speed
         if [ "$target" -gt 0 ] && [ "$current" -eq 0 ]; then

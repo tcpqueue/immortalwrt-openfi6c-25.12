@@ -20,6 +20,10 @@ start_service() {
     procd_set_param respawn
     procd_close_instance
 
+    apply_modem_reset
+}
+
+apply_modem_reset() {
     # Applying a fan setting must not reconfigure ports or reset the modem.
     local reset_config
     reset_config="$(uci -q show openfi.reset)"
@@ -30,6 +34,11 @@ start_service() {
 }
 
 reload_service() {
-    stop
-    start
+    # Keep PWM ownership and the current output while reloading fan settings.
+    # The LED/switch worker already reads its settings on every iteration.
+    if procd_running openfi fan && procd_send_signal openfi fan HUP; then
+        apply_modem_reset
+    else
+        start
+    fi
 }

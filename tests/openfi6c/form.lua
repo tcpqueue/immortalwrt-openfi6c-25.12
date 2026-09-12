@@ -62,3 +62,29 @@ assert(not errors.power and cfg['switch.power']=='1', 'Physical modem control mu
 form['switch.func']='3'; options.led:parse('switch')
 assert(not errors.led and cfg['switch.led']=='1', 'Physical LED control must preserve hidden software setting')
 print('25.12 CBI checks passed: automatic curve save, integer validation, hidden values and physical-switch dependencies.')
+
+setup('package/mtk/applications/luci-app-openfi/luasrc/model/cbi/openfi/settings.lua')
+local expected = {}
+for i,t in ipairs({40,50,60,75}) do
+    cfg['fan.temp'..i]=tostring(t); form['fan.temp'..i]=tostring(t)
+    cfg['fan.speed'..i]=tostring(({6,25,50,80})[i]); form['fan.speed'..i]=cfg['fan.speed'..i]
+    expected['temp'..i]=cfg['fan.temp'..i]; expected['speed'..i]=cfg['fan.speed'..i]
+end
+for _, selected in ipairs({'manual', 'auto', 'manual', 'auto'}) do
+    form['fan.mode']=selected
+    form['fan.manual_speed']=selected=='manual' and '100' or nil
+    options.manual_speed:parse('fan')
+    options.min_speed:parse('fan')
+    for key, value in pairs(expected) do
+        options[key]:parse('fan')
+        assert(cfg['fan.'..key]==value, 'Mode switches must preserve saved curve point '..key)
+    end
+    cfg['fan.mode']=selected
+    assert(cfg['fan.manual_speed']=='100', 'Hidden manual output must retain its own setting')
+    assert(next(errors)==nil, 'Mode round trip must validate')
+end
+form['fan.min_speed']='100'
+options.min_speed:parse('fan')
+assert(errors.min_speed and cfg['fan.min_speed']=='6', 'Reject a conflicting minimum without overwriting configuration')
+for key, value in pairs(expected) do assert(cfg['fan.'..key]==value) end
+print('CBI mode round trips preserve custom automatic points and manual 100%; conflicting minimum is rejected.')

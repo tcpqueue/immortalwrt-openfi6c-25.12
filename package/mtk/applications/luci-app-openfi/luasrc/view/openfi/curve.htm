@@ -169,13 +169,6 @@
    });
   })(i);
   function external(e) {
-   if(e.target===field('min_speed')) {
-    var floor=number('min_speed',5);
-    if(Number.isInteger(floor)&&floor>=5&&floor<=100) {
-     points().forEach(function(p,i){if(p.s<floor)field('speed'+(i+1)).value=String(floor);});
-     sync();
-    }
-   }
    if(e.target===field('min_speed')||e.target===field('emergency_temp')||e.target===field('fan_stop'))render();
   }
   document.addEventListener('input',external);document.addEventListener('change',external);

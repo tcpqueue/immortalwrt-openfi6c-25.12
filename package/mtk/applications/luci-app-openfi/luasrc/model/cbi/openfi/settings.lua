@@ -11,6 +11,7 @@ mode:value("auto", translate("自动 · 跟随 CPU 温度"))
 mode:value("manual", translate("手动 · 固定 PWM 输出"))
 mode.default = "auto"
 mode.rmempty = false
+mode.description = translate("手动输出与自动曲线分别保存，切换模式不会重置曲线。保存并应用后，风扇在下一次采样时采用新设置。")
 
 local speed = fan:taboption("control", Value, "manual_speed", translate("手动输出"))
 speed.template = "openfi/range"
@@ -25,7 +26,7 @@ minimum.template = "openfi/range"
 minimum.minimum = 5
 minimum.datatype = "range(5,100)"
 minimum.rmempty = false
-minimum.description = translate("默认 5%。此值为输出下限，5% 是否能维持转动需实机确认；启动时自动全速助推 1 秒。")
+minimum.description = translate("默认 5%，同时约束手动输出和自动曲线。此项不是手动转速；调高后若与曲线冲突会提示修正，不会覆盖曲线。风扇从停转状态起转时全速助推 1 秒。")
 function minimum.cfgvalue(self, section)
     local value = Value.cfgvalue(self, section)
     if value then return value end
