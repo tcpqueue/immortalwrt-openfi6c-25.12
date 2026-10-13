@@ -96,6 +96,12 @@ class FanTests(unittest.TestCase):
     def test_slew_and_floor(self):
         for current,target,expected in [(90,60,80),(55,0,0),(80,100,100),(0,59,59),(60,55,55)]:
             self.assertEqual(shell(f"current={current}; target={target}; next_output; echo $next"),str(expected))
+    def test_boost_goes_straight_to_target(self):
+        # The 1 s full-speed boost must not be ramped down 10 points per sample.
+        self.assertEqual(shell("min_speed=5; boosted=1; current=100; target=5; next_output; echo $next:$boosted"),"5:0")
+        self.assertEqual(shell("boosted=1; current=100; target=0; next_output; echo $next"),"0")
+        # Only the boost itself is exempt; later reductions are rate limited again.
+        self.assertEqual(shell("min_speed=5; boosted=1; current=100; target=60; next_output; current=$next; target=20; next_output; echo $next"),"50")
     def test_pwm_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(shell("if init_pwm; then echo bad; else echo failed; fi",dict(os.environ,OPENFI_SYSFS=tmp)),"failed")

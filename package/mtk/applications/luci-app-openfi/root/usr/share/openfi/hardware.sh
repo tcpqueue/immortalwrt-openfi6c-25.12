@@ -20,6 +20,11 @@ set_modem_power() {
     [ "$(cat "$node" 2>/dev/null)" = "$value" ] || printf '%s\n' "$value" > "$node"
 }
 
+# Trigger settings are reset by the kernel when a trigger is selected again,
+# e.g. netdev loses the eth0/rax0 binding from /etc/config/system. Keep
+# device_name first and link before link_* so specific speeds win.
+LED_TRIGGER_ATTRS='device_name interval link link_10 link_100 link_1000 link_2500 link_5000 link_10000 half_duplex full_duplex rx tx rx_err tx_err delay_on delay_off'
+
 set_leds() {
     for led_path in "$SYSFS"/class/leds/*; do
         [ -d "$led_path" ] || continue
@@ -30,6 +35,10 @@ set_leds() {
             if [ ! -f "$saved" ]; then
                 sed -n 's/.*\[\([^]]*\)\].*/\1/p' "$led_path/trigger" > "$saved"
                 cat "$led_path/brightness" > "$saved.brightness"
+                for attr in $LED_TRIGGER_ATTRS; do
+                    [ -w "$led_path/$attr" ] || continue
+                    printf '%s=%s\n' "$attr" "$(cat "$led_path/$attr" 2>/dev/null)"
+                done > "$saved.attrs"
             fi
             echo none > "$led_path/trigger"
             echo 0 > "$led_path/brightness"
@@ -40,7 +49,10 @@ set_leds() {
             [ "$old_trigger" != none ] || old_brightness=1
             printf '%s\n' "$old_brightness" > "$led_path/brightness"
             [ -z "$old_trigger" ] || printf '%s\n' "$old_trigger" > "$led_path/trigger"
-            rm -f "$saved" "$saved.brightness"
+            while IFS='=' read -r attr value; do
+                [ -w "$led_path/$attr" ] && printf '%s\n' "$value" 2>/dev/null > "$led_path/$attr"
+            done < "$saved.attrs" 2>/dev/null
+            rm -f "$saved" "$saved.brightness" "$saved.attrs"
         elif [ "$(cat "$RUNDIR/openfi-leds.enabled" 2>/dev/null)" != 1 ]; then
             current_trigger=$(sed -n 's/.*\[\([^]]*\)\].*/\1/p' "$led_path/trigger")
             [ "$current_trigger" != none ] || echo 1 > "$led_path/brightness"

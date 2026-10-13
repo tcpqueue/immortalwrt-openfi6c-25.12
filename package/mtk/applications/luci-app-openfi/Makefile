@@ -10,8 +10,8 @@ include $(INCLUDE_DIR)/package.mk
 LUCI_TITLE:=OpenFi Proprietary Configuration.
 LUCI_DEPENDS:=+luci-compat +luci-lib-jsonc
 LUCI_PKGARCH:=all
-PKG_VERSION:=2026.09.12
-PKG_RELEASE:=2
+PKG_VERSION:=2026.10.13
+PKG_RELEASE:=1
 
 include $(TOPDIR)/feeds/luci/luci.mk
 

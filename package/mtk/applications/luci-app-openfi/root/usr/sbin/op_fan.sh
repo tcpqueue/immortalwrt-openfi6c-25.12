@@ -86,7 +86,9 @@ choose_speed() {
 next_output() {
     next=$target
     # Rise immediately; reduce at most 10 percentage points per sample.
-    if [ "$next" -lt "$((current - 10))" ]; then next=$((current - 10)); fi
+    # The full-speed startup boost is not an operating point to ramp down from.
+    if [ "${boosted:-0}" -eq 0 ] && [ "$next" -lt "$((current - 10))" ]; then next=$((current - 10)); fi
+    boosted=0
     if [ "$next" -gt 0 ] && [ "$next" -lt "$min_speed" ]; then
         if [ "$target" -eq 0 ]; then next=0; else next=$min_speed; fi
     fi
@@ -122,8 +124,18 @@ status() {
     printf '{"updated":%s,"mode":"%s","reason":"%s","output":%s,"target":%s,"cpu":%s,"period":%s}\n'         "$now" "$mode" "$reason" "$current" "$target" "${cpu:-null}" "$period"         > "$RUNDIR/openfi-fan.json.tmp"
     mv "$RUNDIR/openfi-fan.json.tmp" "$RUNDIR/openfi-fan.json"
 }
+pause() {
+    # A foreground sleep defers traps until it ends; procd's 5 s TERM timeout
+    # would then kill the service before the full-speed exit handler runs.
+    # A HUP only marks a reload, which still applies at the next sample.
+    sleep "$1" &
+    sleep_pid=$!
+    while kill -0 "$sleep_pid" 2>/dev/null; do wait "$sleep_pid"; done
+    sleep_pid=
+}
 shutdown() {
     trap - EXIT INT TERM
+    [ -z "${sleep_pid:-}" ] || kill "$sleep_pid" 2>/dev/null
     if ! write_speed 100; then reason=pwm_fault; fi
     current=100; target=100
     [ "$reason" = pwm_fault ] || reason=stopped
@@ -141,11 +153,12 @@ main() {
     while ! init_pwm; do
         reason=pwm_fault; status
         logger -t openfi-fan "PWM initialization failed; retrying in 5 seconds"
-        sleep 5
+        pause 5
         read_temperatures
     done
     # Full output for one second reliably starts a stopped fan.
-    sleep 1
+    pause 1
+    boosted=1
     while :; do
         if [ "$reload_pending" -eq 1 ]; then
             reload_pending=0
@@ -156,7 +169,8 @@ main() {
         if [ "$target" -gt 0 ] && [ "$current" -eq 0 ]; then
             write_speed 100 || exit 1
             current=100; reason=starting; status
-            sleep 1
+            pause 1
+            boosted=1
         fi
         next_output
         if ! write_speed "$next"; then
@@ -166,7 +180,7 @@ main() {
         fi
         current=$next
         status
-        sleep "$period"
+        pause "$period"
     done
 }
 [ "${1:-}" = --library ] || main "$@"

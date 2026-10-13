@@ -100,6 +100,58 @@ class ReloadTests(unittest.TestCase):
                         process.kill()
                         process.wait()
 
+    def test_term_during_long_period_requests_full_speed(self):
+        # procd sends KILL 5 s after TERM; a 30 s sample must not delay the exit handler.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config, commands, run = (root / name for name in ('config', 'commands', 'run'))
+            for directory in (config, commands, run):
+                directory.mkdir()
+            values = dict(mode='auto', min_speed='5', period='30', emergency_temp='85', fan_stop='0',
+                          temp1='40', speed1='5', temp2='50', speed2='25', temp3='60', speed3='50',
+                          temp4='75', speed4='80')
+            for key, value in values.items():
+                (config / ('openfi.fan.' + key)).write_text(value + '\n')
+            zone = root / 'class/thermal/thermal_zone0'
+            zone.mkdir(parents=True)
+            (zone / 'temp').write_text('60000\n')
+            pwm = []
+            for channel in (0, 1):
+                node = root / f'class/pwm/pwmchip0/pwm{channel}'
+                node.mkdir(parents=True)
+                for name in ('period', 'duty_cycle', 'enable'):
+                    (node / name).write_text('0\n')
+                pwm.append(node / 'duty_cycle')
+            for name, body in {'uci': 'cat "$TEST_CONFIG/$3" 2>/dev/null', 'logger': 'exit 0'}.items():
+                path = commands / name
+                path.write_text('#!/bin/sh\n' + body + '\n')
+                path.chmod(0o755)
+            env = dict(os.environ, OPENFI_SYSFS=tmp, OPENFI_RUNDIR=str(run), TEST_CONFIG=str(config),
+                       PATH=str(commands) + ':' + os.environ['PATH'])
+            process = subprocess.Popen([os.environ.get('OPENFI_TEST_SH', 'sh'), str(SCRIPT)], env=env)
+            try:
+                deadline = time.monotonic() + 5
+                state = {}
+                while time.monotonic() < deadline and state.get('reason') != 'auto':
+                    try:
+                        state = json.loads((run / 'openfi-fan.json').read_text())
+                    except (FileNotFoundError, json.JSONDecodeError):
+                        state = {}
+                    time.sleep(0.02)
+                # The startup boost leaves straight for the curve value, not 90%.
+                self.assertEqual((state.get('output'), state.get('target')), (50, 50))
+                self.assertEqual(pwm[0].read_text().strip(), '20000')
+                process.send_signal(signal.SIGTERM)
+                process.wait(timeout=3)
+                for duty in pwm:
+                    self.assertEqual(duty.read_text().strip(), '0')
+                state = json.loads((run / 'openfi-fan.json').read_text())
+                self.assertEqual((state['reason'], state['output']), ('stopped', 100))
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+
     def test_service_reload_signals_without_stop_start(self):
         source = '. ' + shlex.quote(str(SERVICE)) + '\n'
         output = subprocess.check_output(['sh', '-c', source + '''

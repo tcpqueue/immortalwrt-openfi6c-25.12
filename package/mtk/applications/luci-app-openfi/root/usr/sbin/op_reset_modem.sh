@@ -1,9 +1,13 @@
 #!/bin/sh
+# Drive the modem reset line to the configured level. The default 1 matches
+# the DTS export value; unchecking the option writes 0.
+SYSFS=${OPENFI_SYSFS:-/sys}
+node="$SYSFS/class/gpio/lte_reset/value"
 
-state=`uci get openfi.reset.state`
+state=$(uci -q get openfi.reset.state)
+[ "$state" = 0 ] || state=1
 
-logger -t ">>>reset_modem" "state:$state"
+logger -t openfi-modem "reset line: $state"
 
-if [ "$state" == "1" ]; then
-    echo 1 > /sys/class/gpio/lte_reset/value
-fi
+[ -w "$node" ] || exit 1
+[ "$(cat "$node" 2>/dev/null)" = "$state" ] || printf '%s\n' "$state" > "$node"

@@ -11,9 +11,6 @@ function index()
     entry({"admin", "openfi", "openfi6", "settings"},cbi("openfi/settings"),luci.i18n.translate("OpenFi Settings"),3).leaf = true
 
     entry({"admin", "openfi", "openfi6", "status"}, call("fan_status")).leaf = true
-
-    local page
-    page = entry({"admin", "op_help", "mfg_info"}, template("openfi/mfg_info"), _("mfg_info")); page.dependent = false; page.sysauth = false; page.hidden = true
 end
 
 

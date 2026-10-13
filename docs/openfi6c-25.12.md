@@ -76,6 +76,6 @@ Xray 26.10.10 的 go.mod 要求 Go 1.27。package/build-tools/golang 提供适�
 
 2026-09-12 已收到实机使用正常、USB 硬件加速可用的反馈；尚未记录标准化吞吐或射频测试数据。设备树编译的几项警告来自公共 SoC 节点；运行检查脚本后可在 `.build-local/dtc.log` 查看。
 
-2026-10-13 同步上游 468e251 并更新 PassWall2 26.10.1、Xray 26.10.10、Tailscale LuCI d9a3954、OpenList OpenWrt 4bf7266、Aurora 1.4.0 和 Go 1.27.2 后，make download -j16 和 make -j16 返回 0，Xray 实际由 Go 1.27.2 编译，check-openfi6c.sh 与软件包选择检查通过。5119 按上游新的收包代码重写，详见 openfi6c-usb-hnat.md。该版本升级包约 89.84 MiB，SHA-256 为 c5ac01e6c37cec2dac3327bab135068cd27d9888348bbb0427765f380bb8afc8，尚未实机验证和发布。
+2026-10-13 同步上游 468e251 并更新 PassWall2 26.10.1、Xray 26.10.10、Tailscale LuCI d9a3954、OpenList OpenWrt 4bf7266、Aurora 1.4.0、Go 1.27.2 及 OpenFi 插件 2026.10.13-r1 后，make download -j16 和 make -j16 返回 0，Xray 实际由 Go 1.27.2 编译，check-openfi6c.sh 与软件包选择检查通过。5119 按上游新的收包代码重写，详见 openfi6c-usb-hnat.md。该版本升级包约 89.84 MiB，SHA-256 为 3d07887eb32d79227655d80883e28467a20fedbc4c4d889492fb830e14fcb5d9，尚未实机验证和发布。
 
 从此前 24.10 固件升级时，先备份配置，建议不保留旧配置。新版实体接口从旧 eth1 变为 eth0，并使用新的无线配置后端，直接保留旧 network/wireless 可能使网络预设无法生效。

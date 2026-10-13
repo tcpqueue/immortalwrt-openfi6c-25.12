@@ -57,7 +57,9 @@ init_pwm
                 led.mkdir(parents=True)
                 (led / 'trigger').write_text('none [netdev] timer\n')
                 (led / 'brightness').write_text('1\n')
-            code = '. ' + shlex.quote(str(HARDWARE)) + r'''
+                for attr, value in (('device_name', 'eth0'), ('link', '1'), ('tx', '1'), ('rx', '1')):
+                    (led / attr).write_text(value + '\n')
+            code ='. ' + shlex.quote(str(HARDWARE)) + r'''
 uci() {
     case "$*" in
       '-q get openfi.switch.func') echo "$FUNC";;
@@ -79,12 +81,43 @@ apply_hardware
             apply(3, 'off')
             for led in (base / 'class/leds').iterdir():
                 self.assertEqual((led / 'brightness').read_text().strip(), '0')
+                # Selecting a trigger again resets its settings in the kernel.
+                for attr in ('device_name', 'link', 'tx', 'rx'):
+                    (led / attr).write_text('0\n' if attr != 'device_name' else '\n')
+            apply(3, 'off')  # The 2 s worker repeats while off; keep the first snapshot.
             apply(3, 'on')
             for led in (base / 'class/leds').iterdir():
                 self.assertEqual((led / 'brightness').read_text().strip(), '1')
                 self.assertEqual((led / 'trigger').read_text().strip(), 'netdev')
+                self.assertEqual([(led / a).read_text().strip() for a in ('device_name', 'link', 'tx', 'rx')],
+                                 ['eth0', '1', '1', '1'])
+            self.assertEqual(sorted(p.name for p in run.iterdir() if p.name.startswith('openfi-led-')), [])
             apply(1, 'off')  # Retired WAN switch assignment has no network effect.
             self.assertEqual((gpio / 'value').read_text().strip(), '0')
+
+    def test_modem_reset_follows_option(self):
+        script = PKG / 'root/usr/sbin/op_reset_modem.sh'
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            commands = base / 'commands'
+            commands.mkdir()
+            for name, body in {'uci': 'cat "$TEST_STATE"', 'logger': 'exit 0'}.items():
+                (commands / name).write_text('#!/bin/sh\n' + body + '\n')
+                (commands / name).chmod(0o755)
+            state = base / 'state'
+            env = dict(os.environ, OPENFI_SYSFS=tmp, TEST_STATE=str(state),
+                       PATH=str(commands) + ':' + os.environ['PATH'])
+            def run(option):
+                state.write_text(option + '\n')
+                return subprocess.run(['sh', str(script)], env=env, capture_output=True).returncode
+            self.assertEqual(run('1'), 1)  # No exported line: report failure so start retries.
+            value = base / 'class/gpio/lte_reset/value'
+            value.parent.mkdir(parents=True)
+            value.write_text('1\n')  # DTS export default
+            for option, expected in (('0', '0'), ('1', '1'), ('', '1'), ('bad', '1'), ('0', '0')):
+                with self.subTest(option=option):
+                    self.assertEqual(run(option), 0)
+                    self.assertEqual(value.read_text().strip(), expected)
 
 
 if __name__ == '__main__':
