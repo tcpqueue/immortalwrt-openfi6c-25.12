@@ -47,7 +47,7 @@ check_run_environment() {
 		[ -d "/lib/apk/packages" ] && { file_path="/lib/apk/packages"; file_ext=".list"; }
 
 		if [ "$USE_TABLES" = "iptables" ]; then
-			dep_list="iptables-mod-tproxy iptables-mod-socket iptables-mod-iprange iptables-mod-conntrack-extra kmod-ipt-nat"
+			dep_list="iptables-mod-tproxy iptables-mod-socket iptables-mod-iprange iptables-mod-conntrack-extra iptables-mod-extra kmod-ipt-nat"
 		else
 			dep_list="kmod-nft-socket kmod-nft-tproxy kmod-nft-nat"
 			nftflag=1
@@ -591,7 +591,7 @@ start_socks() {
 }
 
 clean_crontab() {
-	[ -f "/tmp/lock/${CONFIG}_cron.lock" ] && return
+	[ -f "${LOCK_PATH}/${CONFIG}_cron.lock" ] && return
 	touch /etc/crontabs/root
 	#sed -i "/${CONFIG}/d" /etc/crontabs/root >/dev/null 2>&1
 	sed -i "/$(echo "/etc/init.d/${CONFIG}" | sed 's#\/#\\\/#g')/d" /etc/crontabs/root >/dev/null 2>&1
@@ -599,7 +599,7 @@ clean_crontab() {
 	sed -i "/$(echo "lua ${APP_PATH}/subscribe.lua start" | sed 's#\/#\\\/#g')/d" /etc/crontabs/root >/dev/null 2>&1
 
 	busybox pgrep -af "${CONFIG}/" | awk '/tasks\.sh/{print $1}' | xargs kill -9 >/dev/null 2>&1
-	rm -rf /tmp/lock/${CONFIG}_tasks.lock
+	rm -f ${LOCK_PATH}/${CONFIG}_tasks.lock
 }
 
 start_crontab() {
@@ -608,8 +608,8 @@ start_crontab() {
 		[ "$start_daemon" = "1" ] && { $APP_PATH/monitor.sh > /dev/null 2>&1 & }
 	fi
 
-	[ -f "/tmp/lock/${CONFIG}_cron.lock" ] && {
-		rm -rf "/tmp/lock/${CONFIG}_cron.lock"
+	[ -f "${LOCK_PATH}/${CONFIG}_cron.lock" ] && {
+		rm -rf "${LOCK_PATH}/${CONFIG}_cron.lock"
 		log_i18n 0 "The task is currently running automatically as a scheduled task; no reconfiguration of the scheduled task is required."
 		return
 	}
@@ -716,7 +716,7 @@ start_crontab() {
 }
 
 stop_crontab() {
-	[ -f "/tmp/lock/${CONFIG}_cron.lock" ] && return
+	[ -f "${LOCK_PATH}/${CONFIG}_cron.lock" ] && return
 	clean_crontab
 	/etc/init.d/cron restart
 	#log_i18n 0 "Clear scheduled commands."
@@ -855,25 +855,25 @@ acl_node() {
 		local DNSMASQ_DEFAULT_DNS="${AUTO_DNS}"
 		local DNSMASQ_LOCAL_DNS="${LOCAL_DNS:-${AUTO_DNS}}"
 		[ -n "${DIRECT_DNS_DNSMASQ_SERVER}" ] && DNSMASQ_LOCAL_DNS="${DIRECT_DNS_DNSMASQ_SERVER}"
-		if [ "${flag}" = "default" ]; then
-			set_cache_var "GLOBAL_SOCKS_server" "127.0.0.1:$socks_port"
-			set_cache_var "ACL_GLOBAL_node" "$node"
+		if [ "${flag}" = "acl_default" ]; then
+			set_cache_var "ACL_${flag}_node" "$node"
+			set_cache_var "ACL_${flag}_node_socks_port" "$socks_port"
 			run_new_dnsmasq=$(config_n_get @global[0] dns_redirect 1)
 			if [ "${run_new_dnsmasq}" != "1" ]; then
 				#Rewrite the default DNS service configuration
 				#Modify the default dnsmasq service
 				lua $APP_PATH/helper_dnsmasq.lua stretch
 				json_init
-				json_add_string "FLAG" "default"
-				json_add_string "TMP_DNSMASQ_PATH" "${GLOBAL_DNSMASQ_CONF_PATH}"
-				json_add_string "DNSMASQ_CONF_FILE" "${GLOBAL_DNSMASQ_CONF}"
+				json_add_string "FLAG" "${flag}"
+				json_add_string "TMP_DNSMASQ_PATH" "${DEFAULT_DNSMASQ_CONF_PATH}"
+				json_add_string "DNSMASQ_CONF_FILE" "${DEFAULT_DNSMASQ_CONF}"
 				json_add_string "DEFAULT_DNS" "${DNSMASQ_DEFAULT_DNS}"
 				json_add_string "LOCAL_DNS" "${DNSMASQ_LOCAL_DNS}"
 				json_add_string "TUN_DNS" "${DNSMASQ_TUN_DNS}"
 				json_add_string "NFTFLAG" "${nftflag:-0}"
 				json_add_string "NO_LOGIC_LOG" "${NO_LOGIC_LOG:-0}"
 				lua $APP_PATH/helper_dnsmasq.lua add_rule "$(json_dump)"
-				uci -q add_list dhcp.@dnsmasq[0].addnmount=${GLOBAL_DNSMASQ_CONF_PATH}
+				uci -q add_list dhcp.@dnsmasq[0].addnmount=${DEFAULT_DNSMASQ_CONF_PATH}
 				uci -q commit dhcp
 
 				lua $APP_PATH/helper_dnsmasq.lua logic_restart
@@ -912,7 +912,7 @@ start() {
 	check_run_environment
 	[ -n "$USE_TABLES" ] && {
 		ACL_JSON=$(lua $APP_PATH/app_acl.lua)
-		[ ! -f ${TMP_ACL_PATH}/acl_node_default ] && ENABLED_DEFAULT_ACL=0
+		[ ! -f ${TMP_ACL_PATH}/acl_node_acl_default ] && ENABLED_DEFAULT_ACL=0
 		local acl_node_num=$(jsonfilter -s "${ACL_JSON}" -e '$.node_order[*]' | wc -l)
 
 		if [ "${acl_node_num}" == 0 ]; then
@@ -923,6 +923,8 @@ start() {
 			set_cache_var "USE_TABLES" "$USE_TABLES"
 		fi
 	}
+	set_cache_var "ENABLED_DEFAULT_ACL" "$ENABLED_DEFAULT_ACL"
+	set_cache_var "ENABLED_ACLS" "$ENABLED_ACLS"
 	if [ "$ENABLED_DEFAULT_ACL" == 1 ] || [ "$ENABLED_ACLS" == 1 ]; then
 		bridge_nf_ipt=$(sysctl -e -n net.bridge.bridge-nf-call-iptables)
 		set_cache_var "bak_bridge_nf_ipt" "$bridge_nf_ipt"
@@ -934,6 +936,9 @@ start() {
 		}
 	fi
 	run_process_queue
+	[ "$1" = "boot" ] && {
+		rm -f "${LOCK_PATH}/${CONFIG}_cron.lock"
+	}
 	start_crontab
 	log_i18n 0 "Running complete!"
 	echolog "\n"
@@ -973,8 +978,8 @@ stop() {
 	unset XRAY_LOCATION_ASSET
 	unset SS_SYSTEM_DNS_RESOLVER_FORCE_BUILTIN
 	stop_crontab
-	rm -rf $GLOBAL_DNSMASQ_CONF
-	rm -rf $GLOBAL_DNSMASQ_CONF_PATH
+	rm -rf $DEFAULT_DNSMASQ_CONF
+	rm -rf $DEFAULT_DNSMASQ_CONF_PATH
 	[ "1" = "1" ] && {
 		#restore logic
 		bak_dnsmasq_dns_redirect=$(config_n_get @global[0] dnsmasq_dns_redirect)
@@ -985,7 +990,7 @@ stop() {
 			uci -q commit ${CONFIG}
 		}
 		if [ -z "${ACL_default_dns_port}" ] || [ -n "${bak_dnsmasq_dns_redirect}" ]; then
-			uci -q del_list dhcp.@dnsmasq[0].addnmount="${GLOBAL_DNSMASQ_CONF_PATH}"
+			uci -q del_list dhcp.@dnsmasq[0].addnmount="${DEFAULT_DNSMASQ_CONF_PATH}"
 			uci -q commit dhcp
 
 			json_init
@@ -996,8 +1001,15 @@ stop() {
 		[ -n "${bak_bridge_nf_ip6t}" ] && sysctl -w net.bridge.bridge-nf-call-ip6tables=${bak_bridge_nf_ip6t} >/dev/null 2>&1
 	}
 	rm -rf $TMP_PATH
-	rm -rf /tmp/lock/${CONFIG}_socks_auto_switch*
-	rm -rf /tmp/lock/${CONFIG}_lease2hosts*
+	rm -f ${LOCK_PATH}/${CONFIG}_socks_auto_switch*
+	rm -f ${LOCK_PATH}/${CONFIG}_lease2hosts*
+	rm -f ${LOCK_PATH}/${CONFIG}_monitor*
+	if ! busybox pgrep -af "${CONFIG}/" | grep -q '/subscribe\.lua'; then
+		rm -f "${LOCK_PATH}/${CONFIG}_subscribe.lock"
+	fi
+	if ! busybox pgrep -af "${CONFIG}/" | grep -q '/rule_update\.lua'; then
+		rm -f "${LOCK_PATH}/${CONFIG}_rule_update.lock"
+	fi
 	log_i18n 0 "Clearing and closing related programs and cache complete."
 	exit 0
 }
@@ -1049,20 +1061,26 @@ get_config() {
 	DIRECT_DNS_QUERY_STRATEGY=$(config_n_get @global[0] direct_dns_query_strategy UseIP)
 
 	get_direct_dns
+	# nslookup uses UDP; TCP direct DNS remains configured for the proxy cores.
+	if [ "$DIRECT_DNS_PROTO" = "udp" ]; then
+		set_cache_var "DIRECT_DNS" "${DIRECT_DNS_SERVER}#${DIRECT_DNS_PORT}"
+	else
+		set_cache_var "DIRECT_DNS" "${AUTO_DNS%%,*}"
+	fi
 
 	DEFAULT_DNSMASQ_CONF_DIR=/tmp/dnsmasq.d
 	DNSMASQ_CONF_DIR=${DEFAULT_DNSMASQ_CONF_DIR}
 	DEFAULT_DNSMASQ_CFGID="$(uci -q show "dhcp.@dnsmasq[0]" | awk 'NR==1 {split($0, conf, /[.=]/); print conf[2]}')"
-	if [ -f "/tmp/etc/dnsmasq.conf.$DEFAULT_DNSMASQ_CFGID" ]; then
-		DNSMASQ_CONF_DIR="$(awk -F '=' '/^conf-dir=/ {print $2}' "/tmp/etc/dnsmasq.conf.$DEFAULT_DNSMASQ_CFGID")"
+	if [ -f "/var/etc/dnsmasq.conf.$DEFAULT_DNSMASQ_CFGID" ]; then
+		DNSMASQ_CONF_DIR="$(awk -F '=' '/^conf-dir=/ {print $2}' "/var/etc/dnsmasq.conf.$DEFAULT_DNSMASQ_CFGID")"
 		if [ -n "$DNSMASQ_CONF_DIR" ]; then
 			DNSMASQ_CONF_DIR=${DNSMASQ_CONF_DIR%*/}
 		else
 			DNSMASQ_CONF_DIR=${DEFAULT_DNSMASQ_CONF_DIR}
 		fi
 	fi
-	set_cache_var GLOBAL_DNSMASQ_CONF ${DNSMASQ_CONF_DIR}/dnsmasq-${CONFIG}.conf
-	set_cache_var GLOBAL_DNSMASQ_CONF_PATH ${TMP_ACL_PATH}/default_dnsmasq.d
+	set_cache_var DEFAULT_DNSMASQ_CONF ${DNSMASQ_CONF_DIR}/dnsmasq-${CONFIG}.conf
+	set_cache_var DEFAULT_DNSMASQ_CONF_PATH ${TMP_ACL_PATH}/acl_default_dnsmasq.d
 
 	QUEUE_RUN=1
 }

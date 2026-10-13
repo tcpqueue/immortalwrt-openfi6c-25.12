@@ -14,6 +14,7 @@ const callGetSubroutes = rpc.declare({ object: 'tailscale', method: 'get_subrout
 const callSetupFirewall = rpc.declare({ object: 'tailscale', method: 'setup_firewall' });
 const callGetLogs = rpc.declare({ object: 'tailscale', method: 'get_logs' });
 let map;
+let lastDevicesStatus;
 
 const tailscaleSettingsConf = [
 	[form.Flag, 'service_enabled', _('Enable Tailscale Service'), _('Enable or disable the Tailscale service. When disabled, the service will be stopped and the process will be killed.'), { rmempty: false }],
@@ -72,7 +73,7 @@ function defTabOpts(s, t, opts, params) {
 }
 
 function getRunningStatus() {
-	return L.resolveDefault(callGetStatus(), { running: false }).then(function (res) {
+	return L.resolveDefault(callGetStatus(), { status: 'stopped', peers: {} }).then(function (res) {
 		return res;
 	});
 }
@@ -255,13 +256,17 @@ function renderLogs(logs_data) {
 	}, lines);
 }
 
-function renderDevices(status) {
+function renderPeerRows(status, query) {
 	if (!status || !status.hasOwnProperty('status')) {
-		return E('em', {}, _('Collecting data ...'));
+		return [E('tr', { 'class': 'cbi-section-table-row' }, [
+			E('td', { 'class': 'cbi-value-field', 'colspan': 8 }, E('em', {}, _('Collecting data ...')))
+		])];
 	}
 
 	if (status.status != 'running') {
-		return E('em', {}, _('Tailscale status error'));
+		return [E('tr', { 'class': 'cbi-section-table-row' }, [
+			E('td', { 'class': 'cbi-value-field', 'colspan': 8 }, E('em', {}, _('Tailscale status error')))
+		])];
 	}
 
 	if (Object.keys(regionCodeMap).length === 0) {
@@ -270,9 +275,54 @@ function renderDevices(status) {
 
 	const peers = status.peers;
 	if (!peers || Object.keys(peers).length === 0) {
-		return E('p', {}, _('No peer devices found.'));
+		return [E('tr', { 'class': 'cbi-section-table-row' }, [
+			E('td', { 'class': 'cbi-value-field', 'colspan': 8 }, E('p', {}, _('No peer devices found.')))
+		])];
 	}
 
+	const q = (query || '').toLowerCase().trim();
+	const td_style = 'padding-right: 20px;';
+	const rows = [];
+
+	for (const id in peers) {
+		const peer = peers[id];
+		const hostname = peer.hostname || '';
+		const ip = peer.ip || '';
+		const ostype = peer.ostype || '';
+
+		if (q && !hostname.toLowerCase().includes(q) &&
+			!ip.toLowerCase().includes(q) &&
+			!ostype.toLowerCase().includes(q)) {
+			continue;
+		}
+
+		rows.push(E('tr', { 'class': 'cbi-rowstyle-1' }, [
+			E('td', { 'class': 'cbi-value-field', 'style': td_style },
+				E('span', {
+					'style': `color:${peer.exit_node ? 'blue' : (peer.online ? 'green' : 'gray')};`,
+					'title': (peer.exit_node ? _('Exit Node') + ' ' : '') + (peer.online ? _('Online') : _('Offline'))
+				}, peer.online ? '●' : '○')
+			),
+			E('td', { 'class': 'cbi-value-field', 'style': td_style }, E('strong', {}, hostname + (peer.exit_node_option ? ' (ExNode)' : ''))),
+			E('td', { 'class': 'cbi-value-field', 'style': td_style }, ip || 'N/A'),
+			E('td', { 'class': 'cbi-value-field', 'style': td_style }, ostype || 'N/A'),
+			E('td', { 'class': 'cbi-value-field', 'style': td_style }, formatConnectionInfo(peer.linkadress || '-')),
+			E('td', { 'class': 'cbi-value-field', 'style': td_style }, formatBytes(peer.rx)),
+			E('td', { 'class': 'cbi-value-field', 'style': td_style }, formatBytes(peer.tx)),
+			E('td', { 'class': 'cbi-value-field', 'style': td_style }, formatLastSeen(peer.lastseen))
+		]));
+	}
+
+	if (rows.length === 0) {
+		return [E('tr', { 'class': 'cbi-section-table-row' }, [
+			E('td', { 'class': 'cbi-value-field', 'colspan': 8 }, E('p', {}, _('No matching peer devices found.')))
+		])];
+	}
+
+	return rows;
+}
+
+function renderDevices(status) {
 	const peerTableHeaders = [
 		{ text: _('Status'), style: 'width: 80px;' },
 		{ text: _('Hostname') },
@@ -284,41 +334,66 @@ function renderDevices(status) {
 		{ text: _('Last Seen') }
 	];
 
-	return E('table', { 'class': 'cbi-table' }, [
-		E('tr', { 'class': 'cbi-table-header' }, peerTableHeaders.map(header => {
+	const thead = E('thead', {}, [
+		E('tr', {
+			'class': 'tr cbi-section-table-titles',
+			'style': 'position: sticky; top: 0; z-index: 10; background-color: var(--background-color, #fff);'
+		}, peerTableHeaders.map(function(header) {
 			let th_style = 'padding-right: 20px; text-align: left;';
 			if (header.style) {
 				th_style += header.style;
 			}
-			return E('th', { 'class': 'cbi-table-cell', 'style': th_style }, header.text);
-		})),
+			return E('th', { 'class': 'th cbi-table-cell', 'style': th_style }, header.text);
+		}))
+	]);
 
-		...Object.entries(peers).map(([peerid, peer]) => {
-			const td_style = 'padding-right: 20px;';
+	const tbody = E('tbody', { 'id': 'tailscale_devices_tbody' }, renderPeerRows(status, ''));
 
-			return E('tr', { 'class': 'cbi-rowstyle-1' }, [
-				E('td', { 'class': 'cbi-value-field', 'style': td_style },
-					E('span', {
-						'style': `color:${peer.exit_node ? 'blue' : (peer.online ? 'green' : 'gray')};`,
-						'title': (peer.exit_node ? _('Exit Node') + ' ' : '') + (peer.online ? _('Online') : _('Offline'))
-					}, peer.online ? '●' : '○')
-				),
-				E('td', { 'class': 'cbi-value-field', 'style': td_style }, E('strong', {}, peer.hostname + (peer.exit_node_option ? ' (ExNode)' : ''))),
-				E('td', { 'class': 'cbi-value-field', 'style': td_style }, peer.ip || 'N/A'),
-				E('td', { 'class': 'cbi-value-field', 'style': td_style }, peer.ostype || 'N/A'),
-				E('td', { 'class': 'cbi-value-field', 'style': td_style }, formatConnectionInfo(peer.linkadress || '-')),
-				E('td', { 'class': 'cbi-value-field', 'style': td_style }, formatBytes(peer.rx)),
-				E('td', { 'class': 'cbi-value-field', 'style': td_style }, formatBytes(peer.tx)),
-				E('td', { 'class': 'cbi-value-field', 'style': td_style }, formatLastSeen(peer.lastseen))
-			]);
-		})
+	const table = E('table', { 'class': 'table cbi-table' }, [
+		thead,
+		tbody
+	]);
+
+	const tableContainer = E('div', {
+		'id': 'tailscale_devices_table_container',
+		'style': 'max-height: 480px; overflow-y: auto; overflow-x: auto;'
+	}, [table]);
+
+	const searchInput = E('input', {
+		'id': 'tailscale_devices_filter',
+		'type': 'text',
+		'class': 'cbi-input-text',
+		'placeholder': _('Filter peers by name, IP, or OS...'),
+		'style': 'width: 100%; box-sizing: border-box;'
+	});
+
+	searchInput.addEventListener('input', function() {
+		const targetBody = document.getElementById('tailscale_devices_tbody');
+		if (targetBody && lastDevicesStatus) {
+			targetBody.replaceChildren(...renderPeerRows(lastDevicesStatus, this.value));
+		}
+	});
+
+	const filterContainer = E('div', {
+		'style': 'display: flex; align-items: center; gap: 0.5em; margin-bottom: 0.5em;'
+	}, [
+		E('label', {
+			'for': 'tailscale_devices_filter',
+			'style': 'white-space: nowrap; font-weight: bold;'
+		}, _('Filter:')),
+		E('div', { 'style': 'flex: 1;' }, [searchInput])
+	]);
+
+	return E('div', { 'style': 'width: 100%;' }, [
+		filterContainer,
+		tableContainer
 	]);
 }
 
 return view.extend({
 	load() {
 		return Promise.all([
-			L.resolveDefault(callGetStatus(), { running: '', peers: [] }),
+			L.resolveDefault(callGetStatus(), { status: 'stopped', peers: {} }),
 			L.resolveDefault(callGetSettings(), { accept_routes: false }),
 			L.resolveDefault(callGetSubroutes(), { routes: [] })
 		])
@@ -377,9 +452,12 @@ return view.extend({
 							view.replaceChildren(content);
 						}
 
-						const devicesView = document.getElementById("tailscale_devices_display");
-						if (devicesView) {
-							devicesView.replaceChildren(renderDevices(res));
+						lastDevicesStatus = res;
+						const devicesTbody = document.getElementById("tailscale_devices_tbody");
+						if (devicesTbody) {
+							const filterInput = document.getElementById("tailscale_devices_filter");
+							const currentQuery = filterInput ? filterInput.value : '';
+							devicesTbody.replaceChildren(...renderPeerRows(res, currentQuery));
 						}
 
 						// login button only available when logged out
@@ -581,6 +659,7 @@ return view.extend({
 		s.tab('devices', _('Devices List'));
 		const devicesSection = s.taboption('devices', form.DummyValue, '_devices');
 		devicesSection.render = function () {
+			lastDevicesStatus = status;
 			return E('div', { 'id': 'tailscale_devices_display', 'class': 'cbi-value' }, renderDevices(status));
 		};
 

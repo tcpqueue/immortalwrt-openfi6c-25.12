@@ -73,12 +73,13 @@ test("shared navigation styles define active and expanded states", () => {
   // Weight is the surface's call — the two run different scales.
   assert.doesNotMatch(directActive, /font-(?:normal|medium|semibold|bold)/);
   // An expanded group's label turns brand and rotates its arrow open.
-  assertIncludesUtilities(expandedToggle, ["after:rotate-90", "text-brand"]);
+  assertIncludesUtilities(expandedToggle, ["text-brand"]);
+  assertIncludesUtilities(getBlock(expandedToggle, "&::after"), ["rotate-90"]);
   // The active group keeps a brand label even when manually collapsed, so the
   // current section stays marked while its pill is hidden — but it must not
   // rotate the arrow open in that collapsed state.
   assertIncludesUtilities(activeGroupToggle, ["text-brand"]);
-  assert.doesNotMatch(activeGroupToggle, /after:rotate-90/);
+  assert.doesNotMatch(activeGroupToggle, /rotate-90/);
   // The pill shape lives with the pill fill in the shared recipe, so the
   // hover/active background is rounded the same way on desktop and mobile.
   assertIncludesUtilities(sublink, [
@@ -92,8 +93,8 @@ test("shared navigation styles define active and expanded states", () => {
     "font-semibold",
     "bg-brand-subtle",
   ]);
-  // The left accent bar is gone — no before:* rail on the active sublink.
-  assert.doesNotMatch(activeSublink, /before:/);
+  // The left accent bar is gone — no ::before rail on the active sublink.
+  assert.doesNotMatch(activeSublink, /before/);
 });
 
 test("one first-level row recipe serves both kinds on both surfaces", () => {
@@ -154,9 +155,9 @@ test("shared navigation styles own accordion animation without a guide rail", ()
   );
   const submenu = getBlock(navigationStyles, ".navigation-submenu-list");
 
-  assertIncludesUtilities(toggle, [
-    "after:transition-[transform,opacity]",
-    "after:duration-[250ms]",
+  assertIncludesUtilities(getBlock(toggle, "&::after"), [
+    "transition-[transform,opacity]",
+    "duration-[250ms]",
   ]);
   assert.match(toggle, /var\(--icon-arrow-right\)/);
   assertIncludesUtilities(region, [
@@ -167,9 +168,9 @@ test("shared navigation styles own accordion animation without a guide rail", ()
     "duration-[250ms]",
   ]);
   assertIncludesUtilities(expandedRegion, ["grid-rows-[1fr]", "opacity-100"]);
-  // The vertical guide rail is removed: the submenu list carries no before:*
+  // The vertical guide rail is removed: the submenu list carries no ::before
   // hairline anymore.
-  assert.doesNotMatch(submenu, /before:bg-hairline/);
+  assert.doesNotMatch(submenu, /before/);
 });
 
 test("desktop sidebar styles only provide desktop navigation density", () => {
@@ -202,6 +203,28 @@ test("desktop sidebar styles only provide desktop navigation density", () => {
     /sidebar-section|sidebar-group-open|nav-link-active|has-active/,
   );
   assert.doesNotMatch(sidebar, /bg-brand-subtle/);
+});
+
+test("desktop sidebar toggles move the column and the panel as one", () => {
+  const sidebar = getBlock(layoutStyles, 'body[data-nav-type="sidebar"]');
+  const easing = "250ms_var(--ease-in-out)";
+
+  // The column width and the panel's translate share one curve and length,
+  // so the content edge stays on the sidebar edge in every frame.
+  assert.ok(
+    sidebar.includes(`md:[transition:grid-template-columns_${easing}]`),
+  );
+  assert.ok(
+    getBlock(sidebar, "& .sidebar-panel-inner {").includes(
+      `[transition:translate_${easing}]`,
+    ),
+  );
+  // Hidden only after the slide-out, shown at once on the way in.
+  assertIncludesUtilities(
+    getBlock(sidebar, "&.sidebar-collapsed .sidebar-panel {"),
+    ["invisible", "[transition:visibility_0s_250ms]"],
+  );
+  assert.doesNotMatch(layoutStyles, /sidebar-anim|sidebar-run-/);
 });
 
 test("mobile drawer styles only provide mobile navigation density", () => {

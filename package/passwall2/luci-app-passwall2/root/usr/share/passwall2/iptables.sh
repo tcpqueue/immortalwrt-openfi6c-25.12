@@ -26,7 +26,7 @@ ip6t_m="$ip6t -t mangle -w"
 [ -z "$ip6t" -o -z "$(lsmod | grep 'ip6table_mangle')" ] && ip6t_m="eval #$ip6t_m"
 FWI=$(uci -q get firewall.passwall2.path 2>/dev/null)
 FAKE_IP="198.18.0.0/16"
-FAKE_IP_6="fc00::/18"
+FAKE_IP_6="2001:2::/48"
 
 factor() {
 	if [ -z "$1" ] || [ -z "$2" ]; then
@@ -230,7 +230,7 @@ gen_shunt_list() {
 	}
 	[ -n "${_SHUNT_LIST4}" ] && eval ${shunt_list4_var_name}=\"${_SHUNT_LIST4}\"
 	[ -n "${_SHUNT_LIST6}" ] && eval ${shunt_list6_var_name}=\"${_SHUNT_LIST6}\"
-	set_cache_var "gen_shunt_list_${node}" "1"
+	set_cache_var "node_${node}_gen_shunt_list" "1"
 }
 
 add_shunt_t_rule() {
@@ -261,7 +261,7 @@ load_acl() {
 	for sid in $(jsonfilter -s "${ACL_JSON}" -e '$.acl[*].flag'); do
 		eval local $(cat "${TMP_ACL_PATH}/${sid}/var")
 
-		[ -z "$(get_cache_var "gen_shunt_list_${node}")" ] && [ -n "${node}" ] && gen_shunt_list "${node}" shunt_list4 shunt_list6
+		[ -z "$(get_cache_var "node_${node}_gen_shunt_list")" ] && [ -n "${node}" ] && gen_shunt_list "${node}" shunt_list4 shunt_list6
 		[ -n "${use}" ] && local dns_redirect_port=$(get_cache_var "ACL_${use}_dns_port")
 
 		local ipt_tmp=$ipt_n
@@ -627,21 +627,25 @@ filter_direct_node_list() {
 update_wan_sets() {
 	[ -z "$(command -v get_wan_ips)" ] && . "$UTILS_PATH"
 
-	local WAN_IP=$(get_wan_ips ip4)
-	[ -n "$WAN_IP" ] && {
-		ipset -F "$IPSET_WAN"
-		for wan_ip in $WAN_IP; do
-			ipset -! add "$IPSET_WAN" "$wan_ip"
-		done
-	}
+	(
+		flock -x 9 || exit 1
 
-	local WAN6_IP=$(get_wan_ips ip6)
-	[ -n "$WAN6_IP" ] && {
-		ipset -F "$IPSET_WAN6"
-		for wan6_ip in $WAN6_IP; do
-			ipset -! add "$IPSET_WAN6" "$wan6_ip"
-		done
-	}
+		local WAN_IP=$(get_wan_ips ip4)
+		[ -n "$WAN_IP" ] && {
+			# ipset -F "$IPSET_WAN"
+			for wan_ip in $WAN_IP; do
+				ipset -! add "$IPSET_WAN" "$wan_ip"
+			done
+		}
+
+		local WAN6_IP=$(get_wan_ips ip6)
+		[ -n "$WAN6_IP" ] && {
+			# ipset -F "$IPSET_WAN6"
+			for wan6_ip in $WAN6_IP; do
+				ipset -! add "$IPSET_WAN6" "$wan6_ip"
+			done
+		}
+	) 9>"${LOCK_PATH}/${CONFIG}_update_wan_sets.lock"
 }
 
 add_firewall_rule() {
@@ -755,8 +759,8 @@ add_firewall_rule() {
 
 	$ipt_m -N PSW2
 	# Socket Only TCP, UDP Invalid.
-	$ipt_m -A PSW2 -p tcp -m socket -j MARK --set-mark ${FWMARK}
-	$ipt_m -A PSW2 -p tcp -m socket -j ACCEPT
+	$ipt_m -A PSW2 -p tcp -m socket --transparent -j MARK --set-mark ${FWMARK}
+	$ipt_m -A PSW2 -p tcp -m socket --transparent -j ACCEPT
 	$ipt_m -A PSW2 $(dst $IPSET_VPS) -j RETURN
 	$ipt_m -A PSW2 $(comment "WAN_IP_RETURN") $(dst $IPSET_WAN) -j RETURN
 	$ipt_m -A PSW2 -m conntrack --ctdir REPLY -j RETURN
@@ -798,8 +802,8 @@ add_firewall_rule() {
 
 	$ip6t_m -N PSW2
 	# Socket Only TCP, UDP Invalid.
-	$ip6t_m -A PSW2 -p tcp -m socket -j MARK --set-mark ${FWMARK}
-	$ip6t_m -A PSW2 -p tcp -m socket -j ACCEPT
+	$ip6t_m -A PSW2 -p tcp -m socket --transparent -j MARK --set-mark ${FWMARK}
+	$ip6t_m -A PSW2 -p tcp -m socket --transparent -j ACCEPT
 	$ip6t_m -A PSW2 $(dst $IPSET_VPS6) -j RETURN
 	$ip6t_m -A PSW2 $(comment "WAN6_IP_RETURN") $(dst $IPSET_WAN6) -j RETURN
 	$ip6t_m -A PSW2 -m conntrack --ctdir REPLY -j RETURN
@@ -847,6 +851,11 @@ add_firewall_rule() {
 		done
 	}
 
+	local direct_ipt
+	for direct_ipt in "$ipt_n" "$ipt_m" "$ip6t_n" "$ip6t_m"; do
+		$direct_ipt -I OUTPUT $(comment "PSW2_DIRECT") -m owner --gid-owner $DIRECT_GID -j RETURN
+	done
+
 	log_i18n 0 "%s firewall rules load complete!" "iptables"
 }
 
@@ -892,7 +901,7 @@ gen_include() {
 		[ -z "${_ipt}" ] && return
 
 		echo "*$2"
-		${_ipt}-save -t $2 | grep "PSW2" | grep -v "\-j PSW2$" | sed -e "s/^-A \(OUTPUT\|PREROUTING\)/-I \1 1/"
+		${_ipt}-save -t $2 | grep "PSW2" | grep -v "PSW2_DIRECT" | grep -v "\-j PSW2$" | sed -e "s/^-A \(OUTPUT\|PREROUTING\)/-I \1 1/"
 		echo 'COMMIT'
 	}
 	local __ipt=""
@@ -904,6 +913,8 @@ gen_include() {
 			$(extract_rules 4 nat)
 			$(extract_rules 4 mangle)
 			EOT
+			$ipt_n -I OUTPUT $(comment "PSW2_DIRECT") -m owner --gid-owner $DIRECT_GID -j RETURN
+			$ipt_m -I OUTPUT $(comment "PSW2_DIRECT") -m owner --gid-owner $DIRECT_GID -j RETURN
 
 			[ "$accept_icmp" = "1" ] && \$(${MY_PATH} insert_rule_after "$ipt_n" "PREROUTING" "prerouting_rule" "$(dst $IPSET_DIRECT !) -p icmp -j PSW2")
 			[ -z "${is_tproxy}" ] && \$(${MY_PATH} insert_rule_after "$ipt_n" "PREROUTING" "prerouting_rule" "$(dst $IPSET_DIRECT !) -p tcp -j PSW2")
@@ -921,6 +932,8 @@ gen_include() {
 			$(extract_rules 6 nat)
 			$(extract_rules 6 mangle)
 			EOT
+			$ip6t_n -I OUTPUT $(comment "PSW2_DIRECT") -m owner --gid-owner $DIRECT_GID -j RETURN
+			$ip6t_m -I OUTPUT $(comment "PSW2_DIRECT") -m owner --gid-owner $DIRECT_GID -j RETURN
 
 			[ "$accept_icmpv6" = "1" ] && $ip6t_n -A PREROUTING $(dst $IPSET_DIRECT6 !) -p ipv6-icmp -j PSW2
 

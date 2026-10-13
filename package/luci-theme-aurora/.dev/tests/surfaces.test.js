@@ -111,9 +111,8 @@ test("mega-menu reveal is compositor-only and the frost never overlaps it", () =
     sheet?.includes("duration-(--mega-menu-duration,300ms)"),
     `sheet must share the adaptive duration: ${sheet}`,
   );
-  // The curtain carries the blur permanently (Apple's globalnav-curtain) and
-  // fades it with opacity/visibility. Close must start that fade immediately;
-  // delaying the curtain left blur visible after the sheet had collapsed.
+  // The curtain only dims: a blurred full-screen fade dropped frames on weak
+  // GPUs. Opacity fades out at once; visibility waits for it without tweening.
   assert.ok(
     !overlay.includes("max-md:backdrop-blur-lg"),
     "opaque mobile overlay must not blur hidden pixels",
@@ -122,12 +121,18 @@ test("mega-menu reveal is compositor-only and the frost never overlaps it", () =
     .split("\n")
     .find((l) => l.includes("bg-mega-menu-scrim"));
   assert.ok(
-    curtain?.includes("backdrop-blur-lg"),
-    `desktop curtain blur: ${curtain}`,
+    !curtain?.includes("backdrop-"),
+    `desktop curtain must not blur: ${curtain}`,
   );
   assert.ok(
-    curtain?.includes("duration-[220ms]") && !curtain.includes("delay-"),
-    `desktop curtain exit must be immediate: ${curtain}`,
+    curtain?.includes("[transition:opacity_220ms_") &&
+      curtain.includes(",visibility_0s_220ms]") &&
+      !curtain.includes("delay-"),
+    `desktop curtain: immediate opacity exit, delayed visibility: ${curtain}`,
+  );
+  assert.ok(
+    /&\.active\s*\{\s*@apply[^;]*\[transition-delay:0s\]/.test(overlay),
+    "desktop curtain must show without delay",
   );
   assert.ok(!overlay.includes(".settled"), "settle-gated frost must stay gone");
 });
@@ -172,7 +177,14 @@ test("content dropdowns stay above the closed header and below the open mega-men
   const overlayRule =
     overlay.match(/& \.desktop-menu-overlay\s*\{\s*@apply\s+([^;]+);/)?.[1] ?? "";
 
-  assert.ok(messageRule.includes(layer(30)), `message layer changed: ${messageRule}`);
+  // The alert banner stays in flow (d747e5f): ui.addNotification() inserts
+  // banners as siblings, so a sticky one would stack on top of the next and
+  // pin opaque surface over scroll targets. In flow it needs no layer at all.
+  assert.ok(messageRule, "alert-message rule not found");
+  assert.ok(
+    !/\b(sticky|fixed)\b/.test(messageRule) && !/\bz-/.test(messageRule),
+    `alert banner must stay in flow with no layer: ${messageRule}`,
+  );
   assert.ok(headerRule.includes(layer(40)), `closed header layer changed: ${headerRule}`);
   assert.ok(dropdownRule.includes(layer(50)), `dropdown layer changed: ${dropdownRule}`);
   assert.ok(overlayRule.includes(layer(60)), `menu overlay layer changed: ${overlayRule}`);

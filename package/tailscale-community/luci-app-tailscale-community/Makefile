@@ -7,8 +7,8 @@ PKG_MAINTAINER:=Tokisaki-Galaxy <moebest@outlook.jp>
 LUCI_DEPENDS:=+tailscale +ip-full +luci-base
 LUCI_PKGARCH:=all
 
-PKG_SRC_VERSION:=26.221.31940~99d7dea
-PKG_PO_VERSION:=26.221.31940~99d7dea
+PKG_SRC_VERSION:=26.283.48699~d9a3954
+PKG_PO_VERSION:=26.283.48699~d9a3954
 
 include $(TOPDIR)/feeds/luci/luci.mk
 

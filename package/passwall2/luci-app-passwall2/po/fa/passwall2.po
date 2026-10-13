@@ -1453,17 +1453,26 @@ msgstr "پورت راه دور"
 msgid "as:"
 msgstr "به عنوان:"
 
-msgid "Public key absolute path"
-msgstr "مسیر مطلق کلید عمومی"
+msgid "Path to the certificate file"
+msgstr "مسیر فایل گواهی‌نامه"
 
-msgid "Private key absolute path"
-msgstr "مسیر مطلق کلید خصوصی"
+msgid "Path to the private key file"
+msgstr "مسیر فایل کلید خصوصی"
 
 msgid "Can't find this file!"
 msgstr "این فایل پیدا نشد!"
 
-msgid "Public key and Private key path can not be empty!"
-msgstr "مسیر کلید عمومی و کلید خصوصی نمی‌تواند خالی باشد!"
+msgid "Certificate and Private key path can not be empty!"
+msgstr "مسیر گواهی و کلید خصوصی نمی‌تواند خالی باشد!"
+
+msgid "Certificate and Private key PEM can not be empty!"
+msgstr "گواهی و کلید خصوصی PEM نمی‌توانند خالی باشند!"
+
+msgid "Use PEM"
+msgstr "از PEM استفاده کنید"
+
+msgid "Use certificate and private key PEM content."
+msgstr "از محتوای PEM گواهی و کلید خصوصی استفاده کنید."
 
 msgid "Server-Side"
 msgstr "سمت سرور"
@@ -1647,6 +1656,12 @@ msgstr "گواهی TLS (PEM)"
 
 msgid "Full certificate (chain), PEM format."
 msgstr "گواهی کامل (زنجیره‌ای)، فرمت PEM."
+
+msgid "TLS Private Key (PEM)"
+msgstr "کلید خصوصی TLS (PEM)"
+
+msgid "Private key in PEM format."
+msgstr "کلید خصوصی با فرمت PEM."
 
 msgid "Fetch Manually"
 msgstr "دریافت دستی"
@@ -2174,23 +2189,8 @@ msgstr "حذف قوانین %s کامل شد."
 msgid "%s firewall rules load complete!"
 msgstr "بارگذاری قوانین فایروال %s کامل شد!"
 
-msgid "Socks switch detection: Unknown error."
-msgstr "تشخیص سوئیچ Socks: خطای ناشناخته."
-
-msgid "Socks switch detection: Unable to connect to the network. Please check if the network is working properly!"
-msgstr "تشخیص سوئیچ Socks: عدم توانایی در اتصال به شبکه. لطفاً بررسی کنید که شبکه به درستی کار می‌کند!"
-
-msgid "Socks switch detection: Primary node 【%s: [%s]】 is normal. Switch to the primary node!"
-msgstr "تشخیص سوئیچ Socks: گره اولیه 【%s: [%s]】 عادی است. سوئیچ به گره اولیه!"
-
-msgid "Socks switch detection: %s node switch complete!"
-msgstr "تشخیص سوئیچ Socks: سوئیچ گره %s کامل شد!"
-
-msgid "Socks switch detection: %s 【%s:[%s]】 normal."
-msgstr "تشخیص سوئیچ Socks: %s 【%s:[%s]】 عادی است."
-
-msgid "switch to %s test detect!"
-msgstr "سوئیچ به تست تشخیص %s!"
+msgid "main node"
+msgstr "گره اصلی"
 
 msgid "backup node"
 msgstr "گره پشتیبان"
@@ -2198,17 +2198,35 @@ msgstr "گره پشتیبان"
 msgid "next backup node"
 msgstr "گره پشتیبان بعدی"
 
-msgid "main node"
-msgstr "گره اصلی"
+msgid "Socks switch detection: Port [%s] try %s [%s:%s]."
+msgstr "تشخیص تغییر وضعیت سوئیچ: پورت [%s]، تلاش %s [%s:%s]."
 
-msgid "Socks switch detection: Unknown error."
-msgstr "تشخیص سوئیچ Socks: خطای ناشناخته."
+msgid "Socks switch detection: Port [%s] [%s:[%s]] normal, switch to this node!"
+msgstr "تشخیص تغییر وضعیت سوکت‌ها: پورت [%s] [%s:[%s]] در وضعیت عادی است، تغییر وضعیت به این گره!"
 
-msgid "Socks switch detection: %s 【%s:[%s]】 abnormal, %s"
-msgstr "تشخیص سوئیچ Socks: %s 【%s:[%s]】 غیرعادی، %s"
+msgid "Socks switch detection: Port [%s] node switch complete!"
+msgstr "تشخیص تغییر وضعیت سوکت‌ها: تغییر وضعیت گره در پورت [%s] تکمیل شد!"
 
-msgid "Socks switch detection: %s 【%s:[%s]】 normal, switch to this node!"
-msgstr "تشخیص سوئیچ Socks: %s 【%s:[%s]】 عادی، سوئیچ به این گره!"
+msgid "Socks switch detection: Port [%s] [%s:[%s]] abnormal."
+msgstr "تشخیص وضعیت سوئیچ: پورت [%s] [%s:[%s]] غیرعادی است."
+
+msgid "Socks switch detection: Port [%s] all nodes are unavailable!"
+msgstr "تشخیص تغییر وضعیت سوئیچ: در پورت [%s]، تمام گره‌ها در دسترس نیستند!"
+
+msgid "Socks switch detection: Port [%s] Unknown error."
+msgstr "تشخیص وضعیت سوئیچ جوراب: پورت [%s] خطای ناشناخته."
+
+msgid "Socks switch detection: Port [%s] Unable to connect to the network. Please check if the network is working properly!"
+msgstr "تشخیص تغییر وضعیت سوکت: پورت [%s]؛ امکان اتصال به شبکه وجود ندارد. لطفاً بررسی کنید که آیا شبکه به‌درستی کار می‌کند یا خیر."
+
+msgid "Socks switch detection: Port [%s] Primary node [%s: [%s]] is normal. Switch to the primary node!"
+msgstr "تشخیص تغییر وضعیت سوکت: وضعیت پورت [%s] و گره اصلی [%s: [%s]] عادی است. تغییر وضعیت به گره اصلی!"
+
+msgid "Socks switch detection: Port [%s] [%s:[%s]] normal."
+msgstr "تشخیص وضعیت سوئیچ: پورت [%s] [%s:[%s]] در وضعیت عادی است."
+
+msgid "Socks switch detection: Port [%s] Number of backup nodes: %s"
+msgstr "تشخیص سوئیچ سوئیچ شبکه: پورت [%s] تعداد گره‌های پشتیبان: %s"
 
 msgid "Restart dnsmasq service."
 msgstr "راه‌اندازی مجدد سرویس dnsmasq."
@@ -2326,6 +2344,9 @@ msgstr "صرف‌نظر از گره %s، زیرا گره‌های نوع %s به
 
 msgid "%s type node subscriptions are not currently supported, skip this node."
 msgstr "اشتراک‌های گره نوع %s در حال حاضر پشتیبانی نمی‌شوند، صرف‌نظر از این گره."
+
+msgid "Skipping %s node. This node URI format cannot be parsed."
+msgstr "از گره %s صرف‌نظر می‌شود. فرمت URI این گره قابل تجزیه نیست."
 
 msgid "Update [%s]"
 msgstr "به‌روزرسانی [%s]"
