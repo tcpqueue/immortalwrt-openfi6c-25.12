@@ -44,7 +44,7 @@ Subject: [PATCH] net: ethernet: mtk_ppe: add mt7988 l4s support
  			   bool amsdu_en)
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.h
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.h
-@@ -425,6 +425,8 @@ int mtk_foe_entry_set_tport(struct mtk_e
+@@ -423,6 +423,8 @@ int mtk_foe_entry_set_tport(struct mtk_e
  			    int tport);
  int mtk_foe_entry_set_cdrt(struct mtk_eth *eth, struct mtk_foe_entry *entry,
  			   int cdrt);
@@ -55,7 +55,7 @@ Subject: [PATCH] net: ethernet: mtk_ppe: add mt7988 l4s support
  			   bool amsdu_en);
 --- a/drivers/net/ethernet/mediatek/mtk_ppe_debugfs.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe_debugfs.c
-@@ -364,6 +364,91 @@ static const struct file_operations mtk_
+@@ -310,6 +310,91 @@ static const struct file_operations mtk_
  };
  
  static int
@@ -147,10 +147,10 @@ Subject: [PATCH] net: ethernet: mtk_ppe: add mt7988 l4s support
  mtk_ppe_internal_debugfs_foe_all_show(struct seq_file *m, void *private)
  {
  	struct mtk_eth *eth = m->private;
-@@ -426,6 +511,10 @@ int mtk_ppe_internal_debugfs_init(struct
+@@ -370,6 +455,10 @@ int mtk_ppe_internal_debugfs_init(struct
+ 			    &mtk_ppe_internal_debugfs_dscp_fops);
+ 	debugfs_create_file("qos_toggle", S_IRUGO, root, eth,
  			    &mtk_ppe_internal_debugfs_qos_fops);
- 	debugfs_create_file("debug_level", S_IRUGO, root, eth,
- 			    &mtk_ppe_internal_debugfs_level_fops);
 +	/* only mt7988 can support l4s through tops */
 +	if (eth->soc->caps == MT7988_CAPS)
 +		debugfs_create_file("l4s_toggle", S_IRUGO, root, eth,
@@ -161,13 +161,13 @@ Subject: [PATCH] net: ethernet: mtk_ppe: add mt7988 l4s support
 --- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
 @@ -341,8 +341,13 @@ mtk_flow_set_output_device(struct mtk_et
- 		ct_mark = ct->mark;
+ 		ct_mark = mtk_flow_get_ct_mark(ct);
  	}
  
 -	if ((eth->qos_toggle == 2 || eth->qos_toggle == 3) &&
 -	    mtk_ppe_check_pppq_path(eth, idev, odev, dsa_port)) {
 +	/* Prevent the L4S packet enter QDMA repeatedly */
-+	if (eth->l4s_toggle && idev->ieee80211_ptr) {
++	if (eth->l4s_toggle && mtk_dev_is_wireless(idev)) {
 +		/* Set the original destination port to tops entry */
 +		mtk_foe_entry_set_tops_entry(eth, foe, pse_port);
 +		pse_port = PSE_TDMA_PORT;

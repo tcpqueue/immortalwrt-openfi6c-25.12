@@ -1,9 +1,10 @@
 ---
-[v2] net: ethernet: mtk_ppe: change to internal QoS mode
+[v3] net: ethernet: mtk_ppe: change to internal QoS mode
 
 Without this patch, the users are unable to use the proprietary HQoS
 and PPPQ modes.
 ---
+v3: Add guard ct mark and ieee80211_ptr with their configs.
 v2: Enable HQoS PPPQ for non-DSA egress ports linked at 1G or below on netsys v3.
 v1: Add internal HQoS and PPPQ QoS mode support with debugfs control.
 ---
@@ -18,24 +19,24 @@ and PPPQ modes.
 
 Signed-off-by: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
 ---
- drivers/net/ethernet/mediatek/mtk_eth_soc.h   | 13 +++
+ drivers/net/ethernet/mediatek/mtk_eth_soc.h   | 24 ++++
  .../net/ethernet/mediatek/mtk_ppe_debugfs.c   | 94 +++++++++++++++++++
  .../net/ethernet/mediatek/mtk_ppe_offload.c   | 54 ++++++++---
  include/net/flow_offload.h                    |  1 +
  net/netfilter/nf_flow_table_offload.c         |  4 +-
- 5 files changed, 154 insertions(+), 12 deletions(-)
+ 5 files changed, 165 insertions(+), 12 deletions(-)
 
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -1776,6 +1776,7 @@ struct mtk_eth {
+@@ -1775,6 +1775,7 @@ struct mtk_eth {
+ 
  	struct metadata_dst		*dsa_meta[MTK_MAX_DSA_PORTS];
  
- 	u8				debug_level;
 +	u8				qos_toggle;
  	u8				l4s_toggle;
  	struct mtk_ppe			*ppe[3];
  	struct rhashtable		flow_table;
-@@ -1992,6 +1993,51 @@ static inline u32 mtk_get_ib2_multicast_
+@@ -1987,6 +1988,62 @@ static inline u32 mtk_get_ib2_multicast_
  	return MTK_FOE_IB2_MULTICAST;
  }
  
@@ -60,11 +61,22 @@ Signed-off-by: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
 +	return SPEED_UNKNOWN;
 +}
 +
++/* struct net_device::ieee80211_ptr only exists with CONFIG_CFG80211_HEADERS */
++static inline bool
++mtk_dev_is_wireless(const struct net_device *dev)
++{
++#if IS_ENABLED(CONFIG_CFG80211_HEADERS)
++	return dev && dev->ieee80211_ptr;
++#else
++	return false;
++#endif
++}
++
 +static inline int
 +mtk_ppe_check_pppq_path(struct mtk_eth *eth, struct net_device *idev,
 +			struct net_device *odev, int dsa_port)
 +{
-+	bool wifi_rx = idev && !!(idev->ieee80211_ptr);
++	bool wifi_rx = mtk_dev_is_wireless(idev);
 +	int odev_speed;
 +
 +	if ((dsa_port >= 0 && dsa_port <= 4) ||
@@ -215,8 +227,18 @@ Signed-off-by: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
  #include <net/dsa.h>
  #include "mtk_eth_soc.h"
  #include "mtk_wed.h"
-@@ -189,13 +191,17 @@ mtk_flow_get_dsa_port(struct net_device
+@@ -189,13 +191,27 @@ mtk_flow_get_dsa_port(struct net_device
  
++/* struct nf_conn::mark only exists with CONFIG_NF_CONNTRACK_MARK */
++static inline u32 mtk_flow_get_ct_mark(const struct nf_conn *ct)
++{
++#if IS_ENABLED(CONFIG_NF_CONNTRACK_MARK)
++	return READ_ONCE(ct->mark);
++#else
++	return 0;
++#endif
++}
++
  static int
  mtk_flow_set_output_device(struct mtk_eth *eth, struct mtk_foe_entry *foe,
 -			   struct net_device *dev, const u8 *dest_mac,
@@ -263,7 +285,7 @@ Signed-off-by: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
 +
 +	if (f->flow && f->flow->ct) {
 +		ct = f->flow->ct;
-+		ct_mark = ct->mark;
++		ct_mark = mtk_flow_get_ct_mark(ct);
 +	}
 +
 +	if (eth->qos_toggle == 2 && mtk_ppe_check_pppq_path(eth, idev, odev, dsa_port))

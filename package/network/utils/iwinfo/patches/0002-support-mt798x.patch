@@ -141,19 +141,18 @@
  	luaL_register(L, NULL, R_common);
 --- a/devices.txt
 +++ b/devices.txt
-@@ -189,9 +189,12 @@
+@@ -192,8 +192,11 @@
  0x14c3 0x7650 0x14c3 0x7650    0      0  "MediaTek" "MT7610E"
  0x14c3 0x7662 0x14c3 0x7662    0      0  "MediaTek" "MT76x2E"
  0x14c3 0x7915 0x14c3 0x7915    0      0  "MediaTek" "MT7915E"
 +0x14c3 0x7916 0x14c3 0x7916    0      0  "MediaTek" "MT7916"
  0x14c3 0x7906 0x14c3 0x7906    0      0  "MediaTek" "MT7916AN"
- 0x14c3 0x7925 0x1a3b 0x6002    0      0  "MediaTek" "MT7925E"
- 0x14c3 0x7990 0x14C3 0x6639    0      0  "MediaTek" "MT7996E"
+ 0x14c3 0x7961 0x14c3 0x7961    0      0  "MediaTek" "MT7921E"
 +0x14c3 0x7986 0x14c3 0x7986    0      0  "MediaTek" "MT7986"
 +0x14c3 0x7981 0x14c3 0x7981    0      0  "MediaTek" "MT7981"
+ 0x14c3 0x7925 0x1a3b 0x6002    0      0  "MediaTek" "MT7925E"
+ 0x14c3 0x7990 0x14C3 0x6639    0      0  "MediaTek" "MT7996E"
  0x14c3 0x7992 0x14c3 0x7992    0      0  "MediaTek" "MT7992E"
- 0x14e4 0xaa52 0x14e4 0xaa52    0      0  "Broadcom" "BCM43602"
- 0x02d0 0xa9a6 0x0000 0x0000    0      0  "Cypress"  "CYW43455"
 --- a/iwinfo_utils.c
 +++ b/iwinfo_utils.c
 @@ -340,6 +340,7 @@ int iwinfo_hardware_id_from_mtd(struct i

@@ -1,6 +1,6 @@
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -2808,6 +2808,27 @@
+@@ -2822,6 +2822,27 @@ static u32 mtk_xdp_run(struct mtk_eth *eth, struct mtk_rx_ring *ring,
  	return act;
  }
  
@@ -28,38 +28,28 @@
  static int mtk_poll_rx(struct napi_struct *napi, int budget,
  		       struct mtk_eth *eth)
  {
-@@ -2834,7 +2855,8 @@
+@@ -2848,7 +2869,7 @@ static int mtk_poll_rx(struct napi_struct *napi, int budget,
  	while (done < budget) {
  		unsigned int pktlen, *rxdcsum;
  		struct net_device *netdev = NULL;
 -		u32 hash, reason;
 +		u32 hash, reason = 0;
-+		u32 sport = 0;
+ 		u32 sport = 0;
  		int mac = 0;
  		bool to_ppd = false;
- 
-@@ -2845,14 +2867,15 @@
+@@ -2860,9 +2881,10 @@ static int mtk_poll_rx(struct napi_struct *napi, int budget,
  		if (!mtk_rx_get_desc(eth, &trxd, rxd))
  			break;
  
 -		/* find out which mac the packet come from. values start at 1 */
 +		/* Decode the source port before selecting a physical RX device. */
  		if (mtk_is_netsys_v3_or_greater(eth)) {
--			u32 val = RX_DMA_GET_SPORT_V2(trxd.rxd5);
--
--			switch (val) {
-+			sport = RX_DMA_GET_SPORT_V2(trxd.rxd5);
+ 			sport = RX_DMA_GET_SPORT_V2(trxd.rxd5);
 +			reason = FIELD_GET(MTK_RXD5_PPE_CPU_REASON, trxd.rxd5);
-+
-+			switch (sport) {
+ 
+ 			switch (sport) {
  			case PSE_GDM1_PORT:
- 			case PSE_GDM2_PORT:
--				mac = val - 1;
-+				mac = sport - 1;
- 				break;
- 			case PSE_GDM3_PORT:
- 				mac = MTK_GMAC3_ID;
-@@ -2860,21 +2883,26 @@
+@@ -2875,18 +2897,25 @@ static int mtk_poll_rx(struct napi_struct *napi, int budget,
  			default:
  				break;
  			}
@@ -72,33 +62,23 @@
 +				mac = RX_DMA_GET_SPORT(trxd.rxd4) - 1;
  		} else if (!MTK_HAS_CAPS(eth->soc->caps, MTK_SOC_MT7628) &&
  			   !(trxd.rxd4 & RX_DMA_SPECIAL_TAG)) {
--			u32 sport = RX_DMA_GET_SPORT(trxd.rxd4);
--
--			/* if it is a from-QDMA packet, set from GMAC1 */
--			if (unlikely(sport == PSE_QDMA_TX_PORT)) {
--				/* sanity check */
--				if (unlikely(!rx_ppdev))
--					goto release_desc;
--
--				sport = PSE_GDM1_PORT;
--				to_ppd = true;
--			}
--
-+			sport = RX_DMA_GET_SPORT(trxd.rxd4);
+ 			sport = RX_DMA_GET_SPORT(trxd.rxd4);
 +			reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
  			mac = sport - 1;
-+		}
-+
-+		if (unlikely(mtk_is_rx_ppd(sport, reason))) {
-+			if (unlikely(!rx_ppdev))
-+				goto release_desc;
-+
-+			mac = mtk_rx_ppd_mac(eth);
-+			to_ppd = true;
  		}
  
- 		if (unlikely(mac < 0 || mac >= MTK_MAX_DEVS ||
-@@ -2993,12 +3021,6 @@
+-		if (unlikely(sport == PSE_QDMA_TX_PORT)) {
+-			/* sanity check */
++		if (unlikely(mtk_is_rx_ppd(sport, reason))) {
+ 			if (unlikely(!rx_ppdev))
+ 				goto release_desc;
+ 
+-			mac = PSE_GDM1_PORT - 1;
++			mac = mtk_rx_ppd_mac(eth);
+ 			to_ppd = true;
+ 		}
+ 
+@@ -3007,12 +3036,6 @@ static int mtk_poll_rx(struct napi_struct *napi, int budget,
  				trace_printk("[%s] reason=0x%x(force to CPU) from WAN to Ext\n",
  					     __func__, skb_hnat_reason(skb));
  				skb->pkt_type = PACKET_HOST;
@@ -110,4 +90,4 @@
 -					to_ppd = true;
  			}
  
- 			trace_printk("[%s] rxd:(entry=%x,sport=%x,reason=%x,alg=%x\n",
+ 			/* With slow path rate limit enabled, packets take

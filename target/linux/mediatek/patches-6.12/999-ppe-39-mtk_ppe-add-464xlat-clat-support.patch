@@ -625,7 +625,7 @@ Subject: [PATCH] net: ethernet: mtk_ppe: add 464xlat clat support
 +		return true;
 +
 +	ct = nf_ct_tuplehash_to_ctrack(h);
-+	ct_mark = ct->mark & 0xff;
++	ct_mark = mtk_flow_get_ct_mark(ct) & 0xff;
 +	nf_ct_put(ct);
 +
 +	/* Skip hardware offload if the conntrack entry was marked before

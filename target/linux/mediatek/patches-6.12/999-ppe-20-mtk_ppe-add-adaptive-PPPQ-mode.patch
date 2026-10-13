@@ -143,7 +143,7 @@ Signed-off-by: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
 --- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
 @@ -331,7 +331,8 @@ mtk_flow_set_output_device(struct mtk_et
- 		ct_mark = ct->mark;
+ 		ct_mark = mtk_flow_get_ct_mark(ct);
  	}
  
 -	if (eth->qos_toggle == 2 && mtk_ppe_check_pppq_path(eth, idev, odev, dsa_port)) {

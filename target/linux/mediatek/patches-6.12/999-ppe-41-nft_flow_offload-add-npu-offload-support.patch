@@ -1,5 +1,5 @@
 ---
-[v2] nft_flow_offload: Add tunnel hardware offload support
+[v3] nft_flow_offload: Add tunnel hardware offload support
 
 Support tunnel offload in nftables flow offload. A new callback function
 mtk_flow_tnl_offload is required to implement if the platform support tunnel
@@ -8,8 +8,9 @@ the "dst" is recorded in the struct nft_forward_info. The structure contains
 essential information to query correct crypto offload parameters.
 
 ---
-v1: Add L2TP tunnel hardware offload support
+v3: Add PPTP hardware offload support
 v2: Add tunnel over IPSec hardware offload support
+v1: Add L2TP tunnel hardware offload support
 ---
 
 --- a/net/netfilter/nft_flow_offload.c
@@ -33,15 +34,16 @@ v2: Add tunnel over IPSec hardware offload support
  	enum flow_offload_xmit_type xmit_type;
  };
  
-@@ -227,6 +232,7 @@ static void nft_dev_path_info(const stru
+@@ -227,6 +232,8 @@ static void nft_dev_path_info(const stru
  		case DEV_PATH_VLAN:
  		case DEV_PATH_PPPOE:
  		case DEV_PATH_MACVLAN:
 +		case DEV_PATH_L2TP:
++		case DEV_PATH_PPTP:
  			if (is_zero_ether_addr(info->h_source))
  				memcpy(info->h_source, path->dev->dev_addr, ETH_ALEN);
  
-@@ -238,6 +244,13 @@ static void nft_dev_path_info(const stru
+@@ -238,6 +245,13 @@ static void nft_dev_path_info(const stru
  				break;
  			}
  
@@ -55,7 +57,7 @@ v2: Add tunnel over IPSec hardware offload support
  			/* DEV_PATH_VLAN and DEV_PATH_PPPOE */
  			if (info->num_encaps >= NF_FLOW_TABLE_ENCAP_MAX) {
  				info->indev = NULL;
-@@ -386,6 +399,8 @@ static int nft_dev_forward_path(const st
+@@ -381,6 +395,8 @@ static int nft_dev_forward_path(const st
  		route->tuple[dir].out.hw_ifindex = info.hw_outdev->ifindex;
  		route->tuple[dir].xmit_type = info.xmit_type;
  	}
@@ -64,7 +66,7 @@ v2: Add tunnel over IPSec hardware offload support
  
  	return 0;
  }
-@@ -686,6 +701,8 @@ err_flow_alloc:
+@@ -681,6 +697,8 @@ err_flow_alloc:
  	dst_release(route.tuple[dir].dst);
  	dst_release(route.tuple[!dir].dst);
  err_flow_route:

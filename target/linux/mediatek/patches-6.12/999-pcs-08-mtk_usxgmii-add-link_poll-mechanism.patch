@@ -1,9 +1,11 @@
 ---
-[v1] net: pcs: mtk_usxgmii: add link_poll mechanism
+[v2] net: pcs: mtk_usxgmii: add link_poll mechanism
 
 Without this patch, the USXGMII PCS cannot recover from a link-down
 state when the system encounters certain error situations.
 ---
+v2: Fix the issue with mtk_usxgmii_pcs_get_state() reporting an stale
+    speed.
 v1: Add a USXGMII link_poll mechanism to recover from a link-down state.
 ---
 
@@ -20,8 +22,6 @@ Signed-off-by: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
  3 files changed, 169 insertions(+), 51 deletions(-)
  create mode 100644 include/linux/phy/phy-mtk-xfi-tphy.h
 
-diff --git a/drivers/net/pcs/pcs-mtk-usxgmii.c b/drivers/net/pcs/pcs-mtk-usxgmii.c
-index b7729fd..1e77896 100644
 --- a/drivers/net/pcs/pcs-mtk-usxgmii.c
 +++ b/drivers/net/pcs/pcs-mtk-usxgmii.c
 @@ -15,6 +15,7 @@
@@ -62,7 +62,7 @@ index b7729fd..1e77896 100644
  static LIST_HEAD(mtk_usxgmii_pcs_instances);
  static DEFINE_MUTEX(instance_mutex);
  
-@@ -105,12 +83,54 @@ static void mtk_m32(struct mtk_usxgmii_pcs *mpcs, unsigned int reg, u32 mask, u3
+@@ -105,12 +83,54 @@ static void mtk_m32(struct mtk_usxgmii_p
  	iowrite32(val, mpcs->base + reg);
  }
  
@@ -119,7 +119,7 @@ index b7729fd..1e77896 100644
  {
  	reset_control_assert(mpcs->reset);
  	udelay(100);
-@@ -157,13 +177,15 @@ static int mtk_usxgmii_pcs_config(struct phylink_pcs *pcs, unsigned int neg_mode
+@@ -157,13 +177,15 @@ static int mtk_usxgmii_pcs_config(struct
  
  	adapt_mode |= FIELD_PREP(USXGMII_RATE_ADAPT_MODE, USXGMII_RATE_ADAPT_MODE_X1);
  
@@ -136,7 +136,7 @@ index b7729fd..1e77896 100644
  
  	/* Configure the interface polarity */
  	mtk_m32(mpcs, RG_PHY_TOP_CTRL0,
-@@ -211,6 +233,11 @@ static int mtk_usxgmii_pcs_config(struct phylink_pcs *pcs, unsigned int neg_mode
+@@ -211,9 +233,54 @@ static int mtk_usxgmii_pcs_config(struct
  	if (an_ctrl & USXGMII_AN_ENABLE)
  		mtk_m32(mpcs, RG_PHY_TOP_SPEED_CTRL1, USXGMII_IF_FORCE_EN, 0);
  
@@ -148,30 +148,74 @@ index b7729fd..1e77896 100644
  	return mode_changed;
  }
  
-@@ -281,41 +308,43 @@ static void mtk_usxgmii_pcs_get_an_state(struct mtk_usxgmii_pcs *mpcs,
++static void mtk_usxgmii_pcs_store_mpcs_state(struct mtk_usxgmii_pcs *mpcs,
++					     struct phylink_link_state *state)
++{
++	mpcs->state.speed = state->speed;
++	mpcs->state.duplex = state->duplex;
++	mpcs->state.interface = state->interface;
++	mpcs->state.an_complete = state->an_complete;
++
++	/* Publish the link flag last, so that a concurrent
++	 * mtk_pcs_lynxi_load_mpcs_state() seeing the link as up also sees the
++	 * speed, duplex and an_complete that belong to it.
++	 */
++	smp_wmb();
++	mpcs->state.link = state->link;
++}
++
++static void mtk_usxgmii_pcs_load_mpcs_state(struct mtk_usxgmii_pcs *mpcs,
++					    struct phylink_link_state *state)
++{
++	/* When the interface of the mpcs is not initialized,
++	 * we should not report the states.
++	 */
++	if (mpcs->state.interface == PHY_INTERFACE_MODE_NA) {
++		state->link = false;
++		return;
++	}
++
++	state->link = mpcs->state.link;
++
++	/* Pair with the smp_wmb() in mtk_pcs_lynxi_store_mpcs_state(): once
++	 * the link flag has been read, the speed, duplex and an_complete that
++	 * belong to it are visible as well.
++	 */
++	smp_rmb();
++	state->speed = mpcs->state.speed;
++	state->duplex = mpcs->state.duplex;
++	state->interface = mpcs->state.interface;
++	state->an_complete = mpcs->state.an_complete;
++}
++
+ static void mtk_usxgmii_pcs_get_fixed_speed(struct mtk_usxgmii_pcs *mpcs,
+ 					    struct phylink_link_state *state)
+ {
+@@ -281,42 +348,41 @@ static void mtk_usxgmii_pcs_get_an_state
  	phylink_decode_usxgmii_word(state, lpa);
  }
  
 -static void mtk_usxgmii_pcs_get_state(struct phylink_pcs *pcs,
+-				      unsigned int neg_mode,
 -				      struct phylink_link_state *state)
 +static void mtk_usxgmii_pcs_update_state(struct mtk_usxgmii_pcs *mpcs)
  {
 -	struct mtk_usxgmii_pcs *mpcs = pcs_to_mtk_usxgmii_pcs(pcs);
-+	struct phylink_link_state *state = &mpcs->state;
- 
+-
 -	/* Refresh USXGMII link status by toggling RG_PCS_AN_STATUS_UPDATE */
 -	mtk_m32(mpcs, RG_PCS_RX_STATUS0, RG_PCS_RX_STATUS_UPDATE,
 -		RG_PCS_RX_STATUS_UPDATE);
 -	ndelay(1020);
 -	mtk_m32(mpcs, RG_PCS_RX_STATUS0, RG_PCS_RX_STATUS_UPDATE, 0);
 -	ndelay(1020);
-+	state->link = mtk_usxgmii_pcs_link_status(mpcs);
-+	state->interface = mpcs->interface;
++	struct phylink_link_state state = mpcs->state;
  
 -	/* Read USXGMII link status */
 -	state->link = FIELD_GET(RG_PCS_RX_LINK_STATUS,
 -				mtk_r32(mpcs, RG_PCS_RX_STATUS0));
--
++	state.link = mtk_usxgmii_pcs_link_status(mpcs);
++	state.interface = mpcs->interface;
+ 
 -	/* Continuously repeat re-configuration sequence until link comes up */
 -	if (!state->link) {
 -		mtk_usxgmii_pcs_config(pcs, mpcs->neg_mode,
@@ -182,24 +226,24 @@ index b7729fd..1e77896 100644
 +	mutex_lock(&mpcs->regmap_lock);
  
  	if (FIELD_GET(USXGMII_AN_ENABLE, mtk_r32(mpcs, RG_PCS_AN_CTRL0)))
- 		mtk_usxgmii_pcs_get_an_state(mpcs, state);
+-		mtk_usxgmii_pcs_get_an_state(mpcs, state);
++		mtk_usxgmii_pcs_get_an_state(mpcs, &state);
  	else
- 		mtk_usxgmii_pcs_get_fixed_speed(mpcs, state);
+-		mtk_usxgmii_pcs_get_fixed_speed(mpcs, state);
++		mtk_usxgmii_pcs_get_fixed_speed(mpcs, &state);
 +
 +	mutex_unlock(&mpcs->regmap_lock);
++
++	mtk_usxgmii_pcs_store_mpcs_state(mpcs, &state);
 +}
 +
 +static void mtk_usxgmii_pcs_get_state(struct phylink_pcs *pcs,
++				      unsigned int neg_mode,
 +				      struct phylink_link_state *state)
 +{
 +	struct mtk_usxgmii_pcs *mpcs = pcs_to_mtk_usxgmii_pcs(pcs);
 +
-+	if (mpcs->state.interface != PHY_INTERFACE_MODE_NA)
-+		state->interface = mpcs->state.interface;
-+
-+	state->speed = mpcs->state.speed;
-+	state->duplex = mpcs->state.duplex;
-+	state->link = mpcs->state.link;
++	mtk_usxgmii_pcs_load_mpcs_state(mpcs, state);
  }
  
  static void mtk_usxgmii_pcs_restart_an(struct phylink_pcs *pcs)
@@ -212,7 +256,7 @@ index b7729fd..1e77896 100644
  }
  
  static void mtk_usxgmii_pcs_link_up(struct phylink_pcs *pcs, unsigned int neg_mode,
-@@ -323,12 +352,41 @@ static void mtk_usxgmii_pcs_link_up(struct phylink_pcs *pcs, unsigned int neg_mo
+@@ -324,12 +390,43 @@ static void mtk_usxgmii_pcs_link_up(stru
  				    int speed, int duplex)
  {
  	struct mtk_usxgmii_pcs *mpcs = pcs_to_mtk_usxgmii_pcs(pcs);
@@ -247,11 +291,13 @@ index b7729fd..1e77896 100644
 +	    (mpcs->poll == false))
 +		goto exit;
 +
-+	if (mtk_usxgmii_pcs_link_status(mpcs) && mtk_usxgmii_pcs_is_valid_ctle(mpcs))
++	if (mtk_usxgmii_pcs_link_status(mpcs) && mtk_usxgmii_pcs_is_valid_ctle(mpcs)) {
 +		mtk_usxgmii_pcs_update_state(mpcs);
-+	else
++	} else {
++		mpcs->state.link = false;
 +		mtk_usxgmii_pcs_config(&mpcs->pcs, mpcs->neg_mode,
 +				       mpcs->interface, NULL, false);
++	}
 +
 +exit:
 +	if (!delayed_work_pending(&mpcs->link_poll))
@@ -259,7 +305,7 @@ index b7729fd..1e77896 100644
  }
  
  static int mtk_usxgmii_pcs_enable(struct phylink_pcs *pcs)
-@@ -337,6 +395,9 @@ static int mtk_usxgmii_pcs_enable(struct phylink_pcs *pcs)
+@@ -338,6 +435,9 @@ static int mtk_usxgmii_pcs_enable(struct
  
  	phy_power_on(mpcs->xfi_tphy);
  
@@ -269,16 +315,17 @@ index b7729fd..1e77896 100644
  	return 0;
  }
  
-@@ -344,6 +405,8 @@ static void mtk_usxgmii_pcs_disable(struct phylink_pcs *pcs)
+@@ -345,6 +445,9 @@ static void mtk_usxgmii_pcs_disable(stru
  {
  	struct mtk_usxgmii_pcs *mpcs = pcs_to_mtk_usxgmii_pcs(pcs);
  
 +	cancel_delayed_work_sync(&mpcs->link_poll);
 +
++	mpcs->state.link = false;
  	mpcs->interface = PHY_INTERFACE_MODE_NA;
  	mpcs->neg_mode = -1;
  
-@@ -386,6 +449,9 @@ static int mtk_usxgmii_probe(struct platform_device *pdev)
+@@ -387,6 +490,9 @@ static int mtk_usxgmii_probe(struct plat
  	mpcs->pcs.neg_mode = true;
  	mpcs->interface = PHY_INTERFACE_MODE_NA;
  	mpcs->neg_mode = -1;
@@ -288,8 +335,6 @@ index b7729fd..1e77896 100644
  
  	mpcs->clk = devm_clk_get_enabled(mpcs->dev, NULL);
  	if (IS_ERR(mpcs->clk))
-diff --git a/include/linux/pcs/pcs-mtk-usxgmii.h b/include/linux/pcs/pcs-mtk-usxgmii.h
-index ef936d9..8c18c1c 100644
 --- a/include/linux/pcs/pcs-mtk-usxgmii.h
 +++ b/include/linux/pcs/pcs-mtk-usxgmii.h
 @@ -4,6 +4,35 @@
@@ -328,9 +373,6 @@ index ef936d9..8c18c1c 100644
  /**
   * mtk_usxgmii_select_pcs() - Get MediaTek PCS instance
   * @np:		Pointer to device node indentifying a MediaTek USXGMII PCS
-diff --git a/include/linux/phy/phy-mtk-xfi-tphy.h b/include/linux/phy/phy-mtk-xfi-tphy.h
-new file mode 100644
-index 0000000..fadeb30
 --- /dev/null
 +++ b/include/linux/phy/phy-mtk-xfi-tphy.h
 @@ -0,0 +1,27 @@
@@ -361,6 +403,3 @@ index 0000000..fadeb30
 +};
 +
 +#endif /* __LINUX_PHY_MTK_XFI_TPHY_H */
--- 
-2.45.2
-

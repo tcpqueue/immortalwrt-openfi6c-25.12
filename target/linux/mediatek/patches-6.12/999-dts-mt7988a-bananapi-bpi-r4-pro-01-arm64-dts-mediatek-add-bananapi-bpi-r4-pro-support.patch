@@ -1,10 +1,10 @@
 ---
-[v5] arm64: dts: mediatek: add BananaPi BPI-R4 Pro support
+[v6] arm64: dts: mediatek: align Ethernet naming with BPI-R4-PRO upstream
 
-Add device tree support for BananaPi BPI-R4 Pro board based on MediaTek MT7988A
-SoC. Includes board DTS and SPI-NAND flash overlays (plain and NMBM/BMT).
+Align Ethernet naming with BPI-R4-PRO upstream.
 
 ---
+v6: Align Ethernet naming with BPI-R4-PRO upstream.
 v5: Move the SPI-NAND flash/NMBM partition table, Factory nvmem cells and the
     PCIe WiFi EEPROM reference out of the board DTS into
     mt7988a-bananapi-bpi-r4-pro-spim-nand{,-nmbm}.dtso overlays.
@@ -18,7 +18,7 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 
 --- /dev/null
 +++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-pro.dts
-@@ -0,0 +1,710 @@
+@@ -0,0 +1,725 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Copyright (C) 2025 MediaTek Inc.
@@ -56,7 +56,7 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 +
 +/ {
 +	model = "Bananapi BPI-R4";
-+	compatible = "bananapi,bpi-r4-pro",
++	compatible = "bananapi,bpi-r4-pro-8x",
 +		     "mediatek,mt7988a";
 +
 +	aliases {
@@ -272,6 +272,7 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 +	phy-mode = "usxgmii";
 +	phy-connection-type = "usxgmii";
 +	phy = <&phy28>;
++	openwrt,netdev-name = "wan";
 +	status = "okay";
 +};
 +
@@ -383,7 +384,7 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 +				reg = <12>;
 +				chan-sel-gpios = <&pio 54 GPIO_ACTIVE_HIGH>;
 +				mod-def0-gpios = <&pio 69 GPIO_ACTIVE_LOW>;
-+				sfp-present-channel = <0>;
++				sfp-connected-channel = <0>;
 +
 +				ds_channel_0: channel@0 {
 +					reg = <0>;
@@ -405,7 +406,7 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 +		ports {
 +			port0: port@0 {
 +				reg = <0>;
-+				label = "mxl_lan0";
++				label = "lan1";
 +				phy-handle = <&switchphy0>;
 +				phy-mode = "internal";
 +				status = "okay";
@@ -413,7 +414,7 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 +
 +			port1: port@1 {
 +				reg = <1>;
-+				label = "mxl_lan1";
++				label = "lan2";
 +				phy-handle = <&switchphy1>;
 +				phy-mode = "internal";
 +				status = "okay";
@@ -421,7 +422,7 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 +
 +			port2: port@2 {
 +				reg = <2>;
-+				label = "mxl_lan2";
++				label = "lan3";
 +				phy-handle = <&switchphy2>;
 +				phy-mode = "internal";
 +				status = "okay";
@@ -429,16 +430,8 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 +
 +			port3: port@3 {
 +				reg = <3>;
-+				label = "mxl_lan3";
++				label = "lan4";
 +				phy-handle = <&switchphy3>;
-+				phy-mode = "internal";
-+				status = "okay";
-+			};
-+
-+			port4: port@4 {
-+				reg = <4>;
-+				label = "mxl_lan4";
-+				phy-handle = <&switchphy4>;
 +				phy-mode = "internal";
 +				status = "okay";
 +			};
@@ -458,7 +451,7 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 +
 +			port6: port@6 {
 +				reg = <12>;
-+				label = "mxl_lan5";
++				label = "lan6";
 +				phy-mode = "usxgmii";
 +				phy-handle = <&phy24>;
 +				status = "okay";
@@ -479,9 +472,6 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 +			switchphy3:switchphy@3 {
 +				reg= <3>;
 +			};
-+			switchphy4:switchphy@4 {
-+				reg= <4>;
-+			};
 +		};
 +	};
 +};
@@ -498,7 +488,32 @@ v1: Move openwrt-master files to openwrt-25.12 branch after OpenWrt official
 +};
 +
 +&gsw_port0 {
-+	label = "lan0";
++	label = "lan5";
++};
++
++/* BPI-R4-PRO has only port 0 connected, so disable the others */
++&gsw_phy1 {
++	status = "disabled";
++};
++
++&gsw_port1 {
++	status = "disabled";
++};
++
++&gsw_phy2 {
++	status = "disabled";
++};
++
++&gsw_port2 {
++	status = "disabled";
++};
++
++&gsw_phy3 {
++	status = "disabled";
++};
++
++&gsw_port3 {
++	status = "disabled";
 +};
 +
 +&i2c0 {

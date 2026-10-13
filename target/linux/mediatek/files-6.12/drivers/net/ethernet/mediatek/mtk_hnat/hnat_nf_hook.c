@@ -1329,6 +1329,39 @@ bool is_eth_dev_speed_under(const struct net_device *dev, u32 speed)
 	return mac->speed <= speed;
 }
 
+static inline bool mtk_tnl_foe_valid(struct sk_buff *skb)
+{
+	struct foe_entry entry = { 0 };
+	struct tcpudphdr *pptr, _ports;
+	struct iphdr *iph;
+
+	if (!skb_hnat_is_hashed(skb) || skb_hnat_ppe(skb) >= CFG_PPE_NUM)
+		return false;
+
+	iph = ip_hdr(skb);
+	if (iph->version != IPVERSION_V4 ||
+	    (iph->protocol != IPPROTO_UDP &&
+	     iph->protocol != IPPROTO_TCP))
+		return false;
+
+	memcpy(&entry,
+	       &hnat_priv->foe_table_cpu[skb_hnat_ppe(skb)][skb_hnat_entry(skb)],
+	       sizeof(entry));
+
+	if (!IS_IPV4_HNAPT(&entry) || entry.bfib1.state != UNBIND)
+		return false;
+
+	pptr = skb_header_pointer(skb, iph->ihl * 4, sizeof(_ports), &_ports);
+	if (unlikely(!pptr))
+		return false;
+
+	return entry.ipv4_hnapt.sip == ntohl(iph->saddr) &&
+	       entry.ipv4_hnapt.dip == ntohl(iph->daddr) &&
+	       entry.ipv4_hnapt.sport == ntohs(pptr->src) &&
+	       entry.ipv4_hnapt.dport == ntohs(pptr->dst) &&
+	       entry.bfib1.udp == (iph->protocol == IPPROTO_UDP);
+}
+
 static unsigned int
 mtk_hnat_ipv4_nf_pre_routing(void *priv, struct sk_buff *skb,
 			     const struct nf_hook_state *state)
@@ -1351,10 +1384,13 @@ mtk_hnat_ipv4_nf_pre_routing(void *priv, struct sk_buff *skb,
 	hw_path.dev = skb->dev;
 	hw_path.virt_dev = skb->dev;
 
-	if (skb_hnat_tops(skb) && skb_hnat_is_decap(skb) &&
+	if (skb_hnat_tops(skb) &&
+	    skb_hnat_is_decap(skb) &&
 	    is_magic_tag_valid(skb) &&
 	    skb_hnat_iface(skb) == FOE_MAGIC_GE_VIRTUAL &&
-	    mtk_tnl_decap_offload && !mtk_tnl_decap_offload(skb)) {
+	    mtk_tnl_decap_offload &&
+	    !mtk_tnl_decap_offload(skb) &&
+	    !mtk_tnl_foe_valid(skb)) {
 		hnat_set_head_frags(state, skb, 1, hnat_set_alg);
 		return NF_ACCEPT;
 	}
@@ -1488,10 +1524,13 @@ mtk_hnat_br_nf_local_in(void *priv, struct sk_buff *skb,
 
 	hnat_set_head_frags(state, skb, -1, hnat_set_iif);
 
-	if (skb_hnat_tops(skb) && skb_hnat_is_decap(skb) &&
+	if (skb_hnat_tops(skb) &&
+	    skb_hnat_is_decap(skb) &&
 	    is_magic_tag_valid(skb) &&
 	    skb_hnat_iface(skb) == FOE_MAGIC_GE_VIRTUAL &&
-	    mtk_tnl_decap_offload && !mtk_tnl_decap_offload(skb)) {
+	    mtk_tnl_decap_offload &&
+	    !mtk_tnl_decap_offload(skb) &&
+	    !mtk_tnl_foe_valid(skb)) {
 		hnat_set_head_frags(state, skb, 1, hnat_set_alg);
 		return NF_ACCEPT;
 	}
@@ -1929,6 +1968,17 @@ static inline void hnat_fill_offload_engine_entry(struct sk_buff *skb,
 	} else
 		return;
 #endif /* defined(CONFIG_MEDIATEK_NETSYS_V3) */
+}
+
+/*
+ * In the encapsulation flow of certain types of tunnel, the 'struct hnat_desc' in skb headroom
+ * will be overwritten after several skb_push's invoked in different stages of linux network stack,
+ * causing HNAT binding failure. Expand the skb headroom before tunnel encapsulation to prevent it.
+ */
+static inline void hnat_tnl_skb_expand_head(struct sk_buff *skb, u32 tnl_type)
+{
+	if (tnl_type == FLOW_OFFLOAD_TNL_VXLAN)
+		pskb_expand_head(skb, sizeof(struct hnat_desc), 0, GFP_ATOMIC);
 }
 
 static int hnat_foe_entry_commit(struct foe_entry *foe,
@@ -3479,6 +3529,7 @@ int mtk_sw_nat_hook_rx(struct sk_buff *skb)
 	skb_hnat_filled(skb) = 0;
 	skb_hnat_set_tops(skb, 0);
 	skb_hnat_set_cdrt(skb, 0);
+	skb_hnat_set_is_pppoe(skb, 0);
 	skb_hnat_set_is_decrypt(skb, 0);
 	skb_hnat_magic_tag(skb) = HNAT_MAGIC_TAG;
 
@@ -3930,7 +3981,7 @@ static unsigned int mtk_hnat_nf_post_routing(
 	if (unlikely(!skb_hnat_is_hashed(skb)))
 		return 0;
 
-	if (unlikely(skb->mark == HNAT_EXCEPTION_TAG))
+	if (unlikely(skb->mark & HNAT_EXCEPTION_BIT))
 		return 0;
 
 	/* Get bond device slave for the following binding flow */
@@ -3949,9 +4000,10 @@ static unsigned int mtk_hnat_nf_post_routing(
 		if (hw_path.flags & BIT(DEV_PATH_TNL) && mtk_tnl_encap_offload) {
 			if (ntohs(skb->protocol) == ETH_P_IP &&
 			    (ip_hdr(skb)->protocol == IPPROTO_TCP ||
-			     ip_hdr(skb)->protocol == IPPROTO_UDP))
+			     ip_hdr(skb)->protocol == IPPROTO_UDP)) {
 				skb_hnat_set_tops(skb, hw_path.tnl_type + 1);
-			else {
+				hnat_tnl_skb_expand_head(skb, hw_path.tnl_type);
+			} else {
 				skb_hnat_alg(skb) = 1;
 				return 0;
 			}
@@ -3978,8 +4030,15 @@ static unsigned int mtk_hnat_nf_post_routing(
 
 	switch (skb_hnat_reason(skb)) {
 	case TCP_FIN_SYN_RST:
-		if (hnat_fin_callback && entry->bfib1.state == FIN &&
-		    IS_HNAT_API_SUPPORTED(entry))
+		/* only FIN/RST alerts matter */
+		if (entry_hnat_state(entry) != FIN)
+			break;
+
+		/* Get the last MIB delta before FIN_AGE reclaims the entry. */
+		if (hnat_priv->data->per_flow_accounting)
+			hnat_get_count(hnat_priv, skb_hnat_ppe(skb), skb_hnat_entry(skb), NULL);
+
+		if (hnat_fin_callback && IS_HNAT_API_SUPPORTED(entry))
 			hnat_trigger_callback(hnat_fin_callback, skb);
 		break;
 	case HIT_UNBIND:

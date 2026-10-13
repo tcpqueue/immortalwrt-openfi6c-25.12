@@ -173,7 +173,7 @@ Signed-off-by: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
  			   struct net_device *idev, struct net_device *odev,
  			   struct flow_cls_offload *f, const u8 *dest_mac,
 @@ -248,13 +331,20 @@ mtk_flow_set_output_device(struct mtk_et
- 		ct_mark = ct->mark;
+ 		ct_mark = mtk_flow_get_ct_mark(ct);
  	}
  
 -	if (eth->qos_toggle == 2 && mtk_ppe_check_pppq_path(eth, idev, odev, dsa_port))
