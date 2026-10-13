@@ -45,3 +45,13 @@ tests/openfi6c/hnat_rx.py 从实际已应用补丁的内核源码提取 RX 分�
 2026-09-12 完整 make -j16 返回 0。升级包内 FIT 的 LZMA 内核解压后与本次 Image 逐字节一致，内核 SHA-256 为 400a8d4dc8411f3076f2973a88f5b4544bb858ae872d1eca179c3e7540042a9a；FIT 设备树与构建产物一致，上述 HNAT 属性及单 MAC1 拓扑已从升级包内直接验证。sysupgrade SHA-256 为 e02a228bf4dd8ea2bf08670aef57f1f8d51d21ea2b02da1259b94ab68640e597。
 
 2026-09-12 已收到 USB 硬件加速可用的实机反馈，未公布具体吞吐或 CPU 占用数据。后续复核可分别用有线客户端和 WiFi 客户端经 USB WAN 传输，核对外部接口表、rxppd 桥接、PPD 状态和对应流的 BIND 状态/计数变化。仅看到 hook_toggle=enabled 或 external_interface 中出现 usb0，不能判定实际已加速。代理及加密运算也不属于此处的硬件 NAT。
+
+## 2026-10-13 上游同步
+
+上游同步至 468e251（Linux 6.12.112）后，5110 补丁改为在描述符解析前声明 sport，并把 QDMA 回送判断移到各 NETSYS 分支之后，原 5119 的 3 个块无法应用。新代码仍把 QDMA 回送固定到硬件 MAC0，NETSYS V2 仍只取三位源端口，因此单 MAC1 拓扑的问题依旧存在，5119 仍然必要。
+
+5119 已按新结构重写，语义与 2026-09-12 实机验证版本相同：统一 QDMA/WDMA 回送识别，NETSYS V2 使用完整四位端口及 CPU reason，选择第一个实际存在的 GMAC，并移除后段重复的 WDMA 判断。对 6.12.112 应用全部通用及 mediatek 补丁后，5119 及其后补丁均可应用；hnat_rx.py 对未加 5119 的上游驱动失败，重写后 160 个用例通过。
+
+同期上游与 HNAT 相关的修正：NETSYS V2 读取 mcast_table 调试文件导致的空指针崩溃已修复；NETSYS V2 流表维持 16K，避免 14 位 RX 索引无法定位 32K 表上半部分的条目；EQoS 改为保留 HNAT 例外标记第 7 位。
+
+2026-10-13 完整 make -j16 返回 0，内核 6.12.112 及 kmod-mediatek_hnat 由已应用新 5119 的源码重新编译；scripts/check-openfi6c.sh 全部通过。sysupgrade SHA-256 为 c5ac01e6c37cec2dac3327bab135068cd27d9888348bbb0427765f380bb8afc8，尚待实机复核 USB 流的 BIND 状态，未发布 Release。

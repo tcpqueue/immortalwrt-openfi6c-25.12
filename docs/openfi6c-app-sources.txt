@@ -1,8 +1,8 @@
-package/passwall2: https://github.com/Openwrt-Passwall/openwrt-passwall2.git @ 88338feea64049cb3e0c0ebe1739f8f95cbf15ad
-package/passwall-packages: https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git @ e73ad1c77a96fdaa498807ff7bc717dc92c349ea
-package/tailscale-community: https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community.git @ 99d7dea5d83d175ec95e777b606086cf415c369d
-package/openlist: https://github.com/OpenListTeam/OpenList-OpenWRT.git @ 9d9ec7d0b52ee3eba7503cb739172f3654b01149
-package/luci-theme-aurora: https://github.com/eamonxg/luci-theme-aurora.git @ c8e8be3a86b324e1daa44e3406b2b8561437c512
+package/passwall2: https://github.com/Openwrt-Passwall/openwrt-passwall2.git @ 492309ea672c9c40725e2a72cb4d4f1625d9ee53
+package/passwall-packages: https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git @ 1af0a5c4fb3a227201683b64d32f61c65db9be72
+package/tailscale-community: https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community.git @ d9a3954213a09e428643db84cce4a2a232727f13
+package/openlist: https://github.com/OpenListTeam/OpenList-OpenWRT.git @ 4bf72661c700d7209e78228f3d3c618443d5b9df
+package/luci-theme-aurora: https://github.com/eamonxg/luci-theme-aurora.git @ 84c27b66952e6fc4be60128067a6b88bfd34afb5
 package/user-apps/luci-app-diskman: feeds/luci/applications/luci-app-diskman @ d6167ea0645cbd1327708d85f94824f42d0eb872
 package/user-apps/luci-app-samba4: feeds/luci/applications/luci-app-samba4 @ d6167ea0645cbd1327708d85f94824f42d0eb872
 package/user-apps/luci-app-timewol: feeds/luci/applications/luci-app-timewol @ d6167ea0645cbd1327708d85f94824f42d0eb872
@@ -31,10 +31,10 @@ package/user-apps/luci-app-diskman: 0.2.13
 package/user-apps/luci-app-ttyd: 26.249.28459~d6167ea
 package/user-apps/luci-app-statistics: 26.249.28459~d6167ea
 package/user-apps/luci-app-uhttpd: 26.249.28459~d6167ea
-package/tailscale-community/luci-app-tailscale-community: 26.221.31940~99d7dea
+package/tailscale-community/luci-app-tailscale-community: 26.283.48699~d9a3954
 package/openlist/luci-app-openlist: 4.2.4
-Go 1.27.1 build recipe adapted from feeds/packages/lang/golang at 84bd86384928955b568988ca0e09e2c78c75173d.
+Go 1.27.2 build recipe adapted from feeds/packages/lang/golang at 84bd86384928955b568988ca0e09e2c78c75173d.
 Common multi-version build helpers are copied unchanged. Only the 1.27 compiler recipe is registered here; standard Go 1.26 and bootstrap remain provided by the standard packages feed.
-Source: https://go.dev/dl/go1.27.1.src.tar.gz
-SHA256: 4e408abae126d916b6164627193f2c54f0e3ca1312d693b86db45f862ab238b1
-Xray 26.9.9 and OpenList 4.2.6 explicitly use golang1.27/host.
+Source: https://go.dev/dl/go1.27.2.src.tar.gz
+SHA256: 03495da2ba64894d40f5c4992e49454fa78b50690604ff92b6afff5081b76e62
+Xray 26.10.10 and OpenList 4.2.6 explicitly use golang1.27/host.

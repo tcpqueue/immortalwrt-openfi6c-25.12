@@ -6,7 +6,7 @@
 
 ![Device](https://img.shields.io/badge/Device-OpenFi%206C-2563eb)
 ![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-25.12-00a3e0)
-![Kernel](https://img.shields.io/badge/Linux-6.12.103-444444)
+![Kernel](https://img.shields.io/badge/Linux-6.12.112-444444)
 ![WiFi](https://img.shields.io/badge/MT%20WiFi-7.6.7.3-16a34a)
 
 [下载固件](https://github.com/tcpqueue/immortalwrt-openfi6c-25.12/releases/latest) · [编译说明](#编译固件) · [适配细节](docs/openfi6c-25.12.md) · [USB HNAT 实现](docs/openfi6c-usb-hnat.md)
@@ -17,7 +17,9 @@
 
 **当前版本：2026-09-12。设备使用正常，USB HNAT 已获实机验证。** 当前支持模块通过 **ECM / RNDIS** 模式上网。
 
-源码中的 OpenFi 管理插件已更新至 `2026.09.12-r2`，修复输出下限覆盖曲线及应用设置时重新全速启动的问题。当前 `v25.12-openfi6c-20260912` Release 升级包仍为原已验证版本，尚不包含此修复；详见 [风扇切换修复说明](docs/openfi6c-fan-switch.md)。
+源码已同步上游至 `468e251`（2026-10-12，Linux 6.12.112），并更新 PassWall2、Xray、Tailscale LuCI、Aurora 和 Go 1.27.2。USB HNAT 回送修正已按上游新的收包代码重写，160 组分派用例通过，尚待实机验证；详见 [USB HNAT 实现说明](docs/openfi6c-usb-hnat.md#2026-10-13-上游同步)。
+
+源码中的 OpenFi 管理插件已更新至 `2026.09.12-r2`，修复输出下限覆盖曲线及应用设置时重新全速启动的问题。当前 `v25.12-openfi6c-20260912` Release 升级包仍为原已验证版本，不包含上述更新和此修复；详见 [风扇切换修复说明](docs/openfi6c-fan-switch.md)。
 
 ## 硬件与模块
 
@@ -60,7 +62,7 @@
 
 | 类别 | 软件与功能 |
 | --- | --- |
-| 代理 | PassWall2 **26.9.9-r2**、Xray **26.9.9**、HAProxy **3.2.21**（SSL/Lua） |
+| 代理 | PassWall2 **26.10.1-r2**、Xray **26.10.10**、HAProxy **3.2.21**（SSL/Lua） |
 | 组网 | Tailscale 社区版 LuCI，核心 **1.98.3** |
 | 文件服务 | OpenList LuCI **4.2.4** / 核心 **4.2.6**，Samba4 **4.22.7** |
 | 磁盘管理 | DiskMan **0.2.13**，分区、文件系统及 SMART 工具 |
@@ -68,7 +70,7 @@
 | 统计监控 | LuCI Statistics、collectd，CPU、内存、负载、接口、无线、Ping、温度等 |
 | 基础管理 | 防火墙、APK 软件包管理、IPv6、PPPoE、HTTPS LuCI、uHTTPd 设置 |
 | 维护工具 | 网页终端、htop、nano、curl、tcpdump、tcping、ethtool、lscpu、lsof、温度工具、CoreMark、SFTP |
-| 外观 | Aurora **1.3.1**、Bootstrap、中文翻译 |
+| 外观 | Aurora **1.4.0**、Bootstrap、中文翻译 |
 
 代理核心仅选择 Xray；`v2ray-geoip` / `v2ray-geosite` 是规则数据。当前固件未包含独立 V2Ray、Shadowsocks、Sing-box 核心，也未编入 `qcserial` 或 PCIe 蜂窝模块驱动。
 
@@ -164,7 +166,7 @@ make target/linux/prepare
 bash scripts/check-openfi6c.sh
 ```
 
-检查覆盖设备树、风扇控制、表单整数校验、USB WAN 自动识别和 **160 组 HNAT 收包分派用例**。Go 1.27.1 编译配方已直接放入源码，供 Xray / OpenList 使用。
+检查覆盖设备树、风扇控制、表单整数校验、USB WAN 自动识别和 **160 组 HNAT 收包分派用例**。Go 1.27.2 编译配方已直接放入源码，供 Xray / OpenList 使用。
 
 ## 源码布局
 
