@@ -15,11 +15,11 @@
 
 面向 **OpenFi 6C** 的完整源码仓库，基于 `chasey-dev/immortalwrt-mt798x-rebase` 的 `25.12` 分支，迁移官方板级适配，使用 MediaTek 闭源 WiFi 驱动，并完善 USB 上网和设备管理。
 
-**当前版本：2026-09-12。设备使用正常，USB HNAT 已获实机验证。** 当前支持模块通过 **ECM / RNDIS** 模式上网。
+**当前版本：2026-10-14，尚未经实机验证。** 上一个实机验证版本为 [2026-09-12](https://github.com/tcpqueue/immortalwrt-openfi6c-25.12/releases/tag/v25.12-openfi6c-20260912)（设备使用正常，USB HNAT 可用）。当前支持模块通过 **ECM / RNDIS** 模式上网。
 
-源码已同步上游至 `468e251`（2026-10-12，Linux 6.12.112），并更新 PassWall2、Xray、Tailscale LuCI 和 Go 1.27.2，界面主题改为 Orchard。USB HNAT 回送修正已按上游新的收包代码重写，160 组分派用例通过，尚待实机验证；详见 [USB HNAT 实现说明](docs/openfi6c-usb-hnat.md#2026-10-13-上游同步)。
+2026-10-14 版同步上游至 `468e251`（2026-10-12，Linux 6.12.112），并更新 PassWall2、Xray、Tailscale LuCI 和 Go 1.27.2，界面主题改为 Orchard。USB HNAT 回送修正已按上游新的收包代码重写，160 组分派用例通过；详见 [USB HNAT 实现说明](docs/openfi6c-usb-hnat.md#2026-10-13-上游同步)。
 
-源码中的 OpenFi 管理插件已更新至 `2026.10.13-r1`，修复输出下限覆盖曲线、应用设置时重新全速启动、起转助推后缓降过慢、停止服务时全速保护可能失效及指示灯恢复后不跟随网口等问题，并移除无需登录的工厂测试页。当前 `v25.12-openfi6c-20260912` Release 升级包仍为原已验证版本，不包含上述更新和此修复；详见 [风扇切换修复说明](docs/openfi6c-fan-switch.md)。
+OpenFi 管理插件更新至 `2026.10.13-r1`，修复输出下限覆盖曲线、应用设置时重新全速启动、起转助推后缓降过慢、停止服务时全速保护可能失效及指示灯恢复后不跟随网口等问题，并移除无需登录的工厂测试页；详见 [风扇切换修复说明](docs/openfi6c-fan-switch.md)。
 
 ## 硬件与模块
 
@@ -98,16 +98,17 @@ flowchart LR
 
 从旧 24.10 / 6.6 固件迁移时，建议不保留旧配置：新版实体网口名称和无线配置后端有变化。
 
-本次升级包约 **89.25 MiB**；官方 256MB NAND 布局的 UBI 分区为 **233.5 MiB**。具体硬件和分区应以实机为准。
+本次升级包约 **89.70 MiB**；官方 256MB NAND 布局的 UBI 分区为 **233.5 MiB**。具体硬件和分区应以实机为准。
 
 <details>
-<summary>2026-09-12 已验证固件校验和</summary>
+<summary>固件校验和</summary>
 
 ```text
+41a7e3ad09ae7e5813e27e4bba6ad2f8c6ae934691c584d5576c7dcbcd893f16  OpenFi6C-25.12-20261014-sysupgrade.bin
 e02a228bf4dd8ea2bf08670aef57f1f8d51d21ea2b02da1259b94ab68640e597  OpenFi6C-25.12-20260912-USBHNAT-sysupgrade.bin
 ```
 
-对应 [完整软件清单](releases/2026-09-12/packages.manifest)。
+前者为 2026-10-14 版（[软件清单](releases/2026-10-14/packages.manifest)），后者为 2026-09-12 实机验证版（[软件清单](releases/2026-09-12/packages.manifest)）。
 
 </details>
 
