@@ -12,6 +12,7 @@ LUCI_DEPENDS:=+luci-compat +luci-lib-jsonc
 LUCI_PKGARCH:=all
 PKG_VERSION:=2026.10.13
 PKG_RELEASE:=1
+PKG_PO_VERSION:=$(PKG_VERSION)
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
