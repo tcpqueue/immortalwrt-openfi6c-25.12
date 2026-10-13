@@ -11,5 +11,5 @@ for path in (root / 'package/user-apps').iterdir():
 for parent in ('passwall2', 'passwall-packages', 'tailscale-community', 'openlist'):
     for file in (root / 'package' / parent).rglob('Makefile'):
         assert not any((root / 'package/feeds').glob('*/' + file.parent.name)), file
-assert not any(word in (root / 'feeds.conf.default').read_text() for word in ('passwall', 'openlist', 'tailscale', 'aurora'))
+assert not any(word in (root / 'feeds.conf.default').read_text() for word in ('passwall', 'openlist', 'tailscale', 'aurora', 'orchard'))
 print('OpenFi 6C target, all requested selections, Xray-only proxy core and direct package sources verified.')

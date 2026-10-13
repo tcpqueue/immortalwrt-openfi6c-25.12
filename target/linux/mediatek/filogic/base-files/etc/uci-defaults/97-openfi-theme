@@ -1,0 +1,15 @@
+#!/bin/sh
+# OpenFi firmware defaults to Orchard and replaces the retired Aurora theme.
+ROOT=${OPENFI_ROOT:-}
+[ "$(cat "$ROOT/tmp/sysinfo/board_name" 2>/dev/null)" = 'openfi,6c' ] || exit 0
+[ -d "$ROOT/www/luci-static/orchard" ] || exit 0
+current=$(uci -q get luci.main.mediaurlbase)
+# Choose Orchard once per configuration; afterwards only repair a theme that is gone.
+if [ "$(uci -q get luci.main.openfi_theme)" != 1 ]; then
+    case "$current" in ''|/luci-static/bootstrap|/luci-static/aurora) current=;; esac
+fi
+[ -n "$current" ] && [ -d "$ROOT/www$current" ] || uci set luci.main.mediaurlbase=/luci-static/orchard
+[ -d "$ROOT/www/luci-static/aurora" ] || uci -q delete luci.themes.Aurora
+uci set luci.main.openfi_theme=1
+uci commit luci
+exit 0

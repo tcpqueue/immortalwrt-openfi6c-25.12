@@ -1,0 +1,5 @@
+#!/bin/sh
+uci -q get luci.themes >/dev/null || uci set luci.themes=internal
+uci set luci.themes.Orchard=/luci-static/orchard
+uci commit luci
+exit 0

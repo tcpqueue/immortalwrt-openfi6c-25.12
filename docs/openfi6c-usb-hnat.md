@@ -54,4 +54,4 @@ tests/openfi6c/hnat_rx.py 从实际已应用补丁的内核源码提取 RX 分�
 
 同期上游与 HNAT 相关的修正：NETSYS V2 读取 mcast_table 调试文件导致的空指针崩溃已修复；NETSYS V2 流表维持 16K，避免 14 位 RX 索引无法定位 32K 表上半部分的条目；EQoS 改为保留 HNAT 例外标记第 7 位。
 
-2026-10-13 完整 make -j16 返回 0，内核 6.12.112 及 kmod-mediatek_hnat 由已应用新 5119 的源码重新编译；scripts/check-openfi6c.sh 全部通过。sysupgrade SHA-256 为 3d07887eb32d79227655d80883e28467a20fedbc4c4d889492fb830e14fcb5d9，尚待实机复核 USB 流的 BIND 状态，未发布 Release。
+2026-10-13 完整 make -j16 返回 0，内核 6.12.112 及 kmod-mediatek_hnat 由已应用新 5119 的源码重新编译；scripts/check-openfi6c.sh 全部通过。sysupgrade SHA-256 为 41a7e3ad09ae7e5813e27e4bba6ad2f8c6ae934691c584d5576c7dcbcd893f16，尚待实机复核 USB 流的 BIND 状态，未发布 Release。

@@ -1,0 +1,15 @@
+Orchard
+
+The base.css file is derived from the LuCI Bootstrap theme, OpenWrt 24.10 branch.
+Copyright 2012 Nut & Bolt, David Menting.
+Based on Bootstrap v1.4.0, Copyright 2011 Twitter, Inc.
+Licensed under the Apache License, Version 2.0.
+
+The theme header and footer follow the LuCI Bootstrap template structure.
+Copyright 2008 Steven Barth.
+Copyright 2012 David Menting.
+Copyright 2008-2022 Jo-Philipp Wich.
+Licensed under the Apache License, Version 2.0.
+
+Upstream: https://github.com/openwrt/luci/tree/openwrt-24.10/themes/luci-theme-bootstrap
+All other files in this package are licensed under the Apache License, Version 2.0.

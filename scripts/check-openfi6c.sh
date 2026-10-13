@@ -11,7 +11,7 @@ gcc -E -nostdinc -undef -D__DTS__ -x assembler-with-cpp \
     -o .build-local/openfi6c.dts.preprocessed
 dtc -I dts -O dtb -o .build-local/openfi6c-mtwifi.dtb \
     .build-local/openfi6c.dts.preprocessed 2> .build-local/dtc.log
-for test in board fan reload hardware usb_wan hnat_rx; do
+for test in board fan reload hardware usb_wan hnat_rx theme; do
     uv run --no-project --python .venv/bin/python "tests/openfi6c/$test.py"
 done
 lua tests/openfi6c/form.lua

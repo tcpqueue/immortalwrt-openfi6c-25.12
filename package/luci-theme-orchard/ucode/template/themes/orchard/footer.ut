@@ -1,0 +1,11 @@
+{% if (!blank_page): %}
+</main>
+<footer class="orchard-footer">
+ <span>{{ version.distname }} {{ version.distversion }} ({{ version.distrevision }}) <span class="orchard-footer-separator">·</span> {{ version.luciname }} ({{ version.luciversion }}){% if (lua_active): %} <span class="orchard-footer-separator">·</span> {{ _('Lua compatibility mode active') }}{% endif %}</span>
+ <ul id="modemenu" class="breadcrumb" style="display:none"></ul>
+ <a href="https://github.com/openwrt/luci" target="_blank" rel="noreferrer">LuCI</a>
+</footer>
+<script>L.env.resource_version = (L.env.resource_version || '') + '-orchard-@ORCHARD_VERSION@'; L.require('menu-orchard')</script>
+{% endif %}
+</body>
+</html>

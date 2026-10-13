@@ -1,0 +1,64 @@
+{#
+ Copyright 2008 Steven Barth, 2012 David Menting, 2008-2022 Jo-Philipp Wich.
+ Derived from the LuCI Bootstrap template. Apache License 2.0.
+-#}
+{%
+ import { getuid, getspnam } from 'luci.core';
+ const boardinfo = ubus.call('system', 'board') ?? {};
+ const current = dispatched ?? node;
+ const chinese = substr(dispatcher.lang, 0, 2) == 'zh';
+ const pagecss = current?.css ?? node?.css;
+ http.prepare_content('text/html; charset=UTF-8');
+-%}
+<!DOCTYPE html>
+<html lang="{{ dispatcher.lang }}">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
+ <meta name="darkreader-lock">
+ <title>{{ striptags(boardinfo.hostname ?? 'OpenWrt') }} · {{ current?.title ? _(current.title) : 'Orchard' }}</title>
+ <script src="{{ media }}/orchard.js?v=@ORCHARD_VERSION@"></script>
+ <link rel="stylesheet" href="{{ media }}/base.css?v=@ORCHARD_VERSION@">
+ <link rel="stylesheet" href="{{ media }}/cascade.css?v=@ORCHARD_VERSION@">
+ <link rel="icon" href="{{ media }}/logo.svg" type="image/svg+xml">
+ {% if (pagecss): %}<link rel="stylesheet" href="{{ resource }}/{{ pagecss }}">{% endif %}
+ {% if (css): %}<style>{{ css }}</style>{% endif %}
+ <script src="{{ dispatcher.build_url('admin/translations', dispatcher.lang) }}"></script>
+ <script src="{{ resource }}/cbi.js"></script>
+</head>
+<body class="orchard lang_{{ dispatcher.lang }} {{ entityencode(striptags(current?.title ?? ''), true) }}" data-orchard-version="@ORCHARD_VERSION@" data-page="{{ entityencode(join('-', length(ctx.request_path) ? ctx.request_path : ctx.path), true) }}">
+{% if (!blank_page): %}
+<a href="#maincontent" class="orchard-skip">{{ _('Skip to content') }}</a>
+<aside class="orchard-sidebar" id="orchard-sidebar" aria-label="{{ _('Navigation') }}">
+ <a class="orchard-brand" href="{{ dispatcher.build_url('admin') }}">
+  <img src="{{ media }}/logo.svg" width="42" height="42" alt="">
+  <span><strong>{{ striptags(boardinfo.hostname ?? 'OpenWrt') }}</strong><small>{{ chinese ? '路由器设置' : _('Router settings') }}</small></span>
+ </a>
+ <nav id="orchard-menu" aria-label="{{ chinese ? '主菜单' : _('Main menu') }}"></nav>
+ <div class="orchard-sidebar-bottom">
+  <div class="orchard-appearance" role="group" aria-label="{{ chinese ? '外观' : _('Appearance') }}">
+   <button type="button" data-appearance="light" aria-label="{{ chinese ? '浅色' : _('Light') }}" title="{{ chinese ? '浅色' : _('Light') }}"><span data-icon="sun"></span></button>
+   <button type="button" data-appearance="dark" aria-label="{{ chinese ? '深色' : _('Dark') }}" title="{{ chinese ? '深色' : _('Dark') }}"><span data-icon="moon"></span></button>
+   <button type="button" data-appearance="system" aria-label="{{ _('Automatic') }}" title="{{ _('Automatic') }}"><span data-icon="display"></span></button>
+  </div>
+  <small>Orchard <span>· LuCI</span></small>
+ </div>
+</aside>
+<div class="orchard-scrim" id="orchard-scrim" hidden></div>
+<header class="orchard-toolbar">
+ <button type="button" class="orchard-nav-toggle" id="orchard-nav-toggle" aria-label="{{ chinese ? '切换导航' : _('Toggle navigation') }}" aria-controls="orchard-sidebar" aria-expanded="false"><span data-icon="sidebar"></span></button>
+ <div class="orchard-location"><span>{{ boardinfo.release?.distribution ?? 'OpenWrt' }}</span><span class="orchard-location-divider">/</span><strong id="orchard-location-title">{{ current?.title ? _(current.title) : 'Orchard' }}</strong></div>
+ <div id="indicators" class="pull-right"></div>
+</header>
+<main id="maincontent" class="container" tabindex="-1">
+ {% if (getuid() == 0 && getspnam('root')?.pwdp === ''): %}
+ <div class="alert-message warning"><h4>{{ _('No password set!') }}</h4><p>{{ _('There is no password set on this router. Please configure a root password to protect the web interface.') }}</p>
+ {% if (dispatcher.lookup('admin/system/admin')): %}<a class="btn" href="{{ dispatcher.build_url('admin/system/admin') }}">{{ _('Go to password configuration...') }}</a>{% endif %}</div>
+ {% endif %}
+ {% if (boardinfo.rootfs_type == 'initramfs'): %}
+ <div class="alert-message warning"><h4>{{ _('System running in recovery (initramfs) mode.') }}</h4><p>{{ _('No changes to settings will be stored and are lost after rebooting. This mode should only be used to install a firmware upgrade') }}</p>
+ {% if (dispatcher.lookup('admin/system/flash')): %}<a class="btn" href="{{ dispatcher.build_url('admin/system/flash') }}">{{ _('Go to firmware upgrade...') }}</a>{% endif %}</div>
+ {% endif %}
+ <noscript><div class="alert-message warning"><h4>{{ _('JavaScript required!') }}</h4><p>{{ _('You must enable JavaScript in your browser or LuCI will not work properly.') }}</p></div></noscript>
+ <div id="tabmenu" style="display:none"></div>
+{% endif %}

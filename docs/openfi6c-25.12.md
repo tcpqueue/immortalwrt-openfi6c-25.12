@@ -44,14 +44,14 @@ make -j16
 
 ## 软件组合
 
-新增第三方源码直接保存在 package/passwall2、package/passwall-packages、package/tailscale-community、package/openlist、package/luci-theme-aurora 和 package/user-apps。没有添加第三方 feed；标准 feeds 继续提供公共库及构建工具。`./scripts/feeds install -a` 会保留 package 中已有的源码；不要添加 `-f` 强制覆盖。
+新增第三方源码直接保存在 package/passwall2、package/passwall-packages、package/tailscale-community、package/openlist、package/luci-theme-orchard 和 package/user-apps。没有添加第三方 feed；标准 feeds 继续提供公共库及构建工具。`./scripts/feeds install -a` 会保留 package 中已有的源码；不要添加 `-f` 强制覆盖。
 
 - PassWall2 26.10.1-r2，Xray 26.10.10，HAProxy 3.2.21（SSL/Lua）。仅选择 Xray 代理核心，不选择独立 V2Ray、Shadowsocks、Sing-box 核心。v2ray-geoip/geosite 为规则数据，保留作为 PassWall2 依赖。
 - 社区版 Tailscale LuCI，核心 1.98.3；OpenList LuCI 4.2.4，核心及前端 4.2.6。
 - DiskMan 0.2.13、SMART/分区工具；Samba4 4.22.7；TimeWOL 和 etherwake。
 - MTK EQoS、TurboACC、HNAT、WED 相关模块；网页终端、uHTTPd 设置、HTTPS LuCI、nftables UPnP。
 - LuCI Statistics 和 collectd：CPU、内存、负载、接口、无线、Ping、温度、运行时间及 RRD。接口采集排除 lo，其余接口自动覆盖；Ping 默认沿用上游 localhost，可在页面中改为需要监测的目标。RRD 默认写入 /tmp。
-- 防火墙、APK 软件包管理、IPv6、PPPoE；Aurora 1.4.0、Bootstrap 和上述插件中文包。全新配置使用 Aurora 默认主题。
+- 防火墙、APK 软件包管理、IPv6、PPPoE；Orchard 0.3.0-r1、Bootstrap 和上述插件中文包。全新配置默认使用 Orchard；从使用 Aurora 的旧固件升级时自动改用 Orchard，此后用户自选的主题保持不变，所选主题被移除时回到 Orchard（target/linux/mediatek/filogic/base-files/etc/uci-defaults/97-openfi-theme）。
 - htop、nano、curl、tcpdump、tcping、ethtool、lscpu、lsof、lm-sensors、CoreMark、SFTP 服务。
 
 源码提交和路径见 [软件来源记录](openfi6c-app-sources.txt)，各插件源码已直接包含在本仓库中。未复制官方仓库的旧软件源。当前支持及维护范围为 ECM / RNDIS 模块模式。
@@ -76,6 +76,6 @@ Xray 26.10.10 的 go.mod 要求 Go 1.27。package/build-tools/golang 提供适�
 
 2026-09-12 已收到实机使用正常、USB 硬件加速可用的反馈；尚未记录标准化吞吐或射频测试数据。设备树编译的几项警告来自公共 SoC 节点；运行检查脚本后可在 `.build-local/dtc.log` 查看。
 
-2026-10-13 同步上游 468e251 并更新 PassWall2 26.10.1、Xray 26.10.10、Tailscale LuCI d9a3954、OpenList OpenWrt 4bf7266、Aurora 1.4.0、Go 1.27.2 及 OpenFi 插件 2026.10.13-r1 后，make download -j16 和 make -j16 返回 0，Xray 实际由 Go 1.27.2 编译，check-openfi6c.sh 与软件包选择检查通过。5119 按上游新的收包代码重写，详见 openfi6c-usb-hnat.md。该版本升级包约 89.84 MiB，SHA-256 为 3d07887eb32d79227655d80883e28467a20fedbc4c4d889492fb830e14fcb5d9，尚未实机验证和发布。
+2026-10-13 同步上游 468e251 并更新 PassWall2 26.10.1、Xray 26.10.10、Tailscale LuCI d9a3954、OpenList OpenWrt 4bf7266、Go 1.27.2 及 OpenFi 插件 2026.10.13-r1，并以 Orchard 0.3.0-r1 替换 Aurora 后，make download -j16 和 make -j16 返回 0，Xray 实际由 Go 1.27.2 编译，check-openfi6c.sh 与软件包选择检查通过。5119 按上游新的收包代码重写，详见 openfi6c-usb-hnat.md。Orchard 已在 ImmortalWrt 25.12.2 x86 虚拟机检查登录、状态、系统、网络、防火墙和 OpenFi 页面的浅色、深色及手机布局。该版本升级包约 89.70 MiB，SHA-256 为 41a7e3ad09ae7e5813e27e4bba6ad2f8c6ae934691c584d5576c7dcbcd893f16，尚未实机验证。
 
 从此前 24.10 固件升级时，先备份配置，建议不保留旧配置。新版实体接口从旧 eth1 变为 eth0，并使用新的无线配置后端，直接保留旧 network/wireless 可能使网络预设无法生效。

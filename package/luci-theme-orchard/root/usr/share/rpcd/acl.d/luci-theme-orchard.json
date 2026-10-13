@@ -1,0 +1,17 @@
+{
+ "luci-theme-orchard": {
+  "description": "Read system, interface and DHCP status for Orchard",
+  "read": {
+   "ubus": {
+    "system": ["board", "info"],
+    "file": ["read"],
+    "luci-rpc": ["getDHCPLeases", "getNetworkDevices", "getWirelessDevices", "getBoardJSON", "getHostHints"],
+    "network": ["get_proto_handlers"],
+    "network.interface": ["dump"],
+    "network.device": ["status"]
+   },
+   "uci": ["network", "wireless", "luci"],
+   "file": { "/proc/stat": ["read"] }
+  }
+ }
+}

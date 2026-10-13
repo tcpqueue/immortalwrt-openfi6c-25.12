@@ -17,7 +17,7 @@
 
 **当前版本：2026-09-12。设备使用正常，USB HNAT 已获实机验证。** 当前支持模块通过 **ECM / RNDIS** 模式上网。
 
-源码已同步上游至 `468e251`（2026-10-12，Linux 6.12.112），并更新 PassWall2、Xray、Tailscale LuCI、Aurora 和 Go 1.27.2。USB HNAT 回送修正已按上游新的收包代码重写，160 组分派用例通过，尚待实机验证；详见 [USB HNAT 实现说明](docs/openfi6c-usb-hnat.md#2026-10-13-上游同步)。
+源码已同步上游至 `468e251`（2026-10-12，Linux 6.12.112），并更新 PassWall2、Xray、Tailscale LuCI 和 Go 1.27.2，界面主题改为 Orchard。USB HNAT 回送修正已按上游新的收包代码重写，160 组分派用例通过，尚待实机验证；详见 [USB HNAT 实现说明](docs/openfi6c-usb-hnat.md#2026-10-13-上游同步)。
 
 源码中的 OpenFi 管理插件已更新至 `2026.10.13-r1`，修复输出下限覆盖曲线、应用设置时重新全速启动、起转助推后缓降过慢、停止服务时全速保护可能失效及指示灯恢复后不跟随网口等问题，并移除无需登录的工厂测试页。当前 `v25.12-openfi6c-20260912` Release 升级包仍为原已验证版本，不包含上述更新和此修复；详见 [风扇切换修复说明](docs/openfi6c-fan-switch.md)。
 
@@ -56,7 +56,7 @@
 - 新增插件源码直接放在 **`package/`**，便于修改和维护。
 - PassWall2 和依赖来自各自上游源码，使用 **Xray + HAProxy**。
 - 标准 feeds 用于公共依赖和构建支持，固定到本次构建使用的提交。
-- 内置中文语言包，提供 **Aurora / Bootstrap** 主题。
+- 内置中文语言包，默认 **Orchard** 主题（仿 macOS 系统设置，浅色、深色和手机布局），保留 Bootstrap。
 
 ## 内置软件
 
@@ -70,7 +70,7 @@
 | 统计监控 | LuCI Statistics、collectd，CPU、内存、负载、接口、无线、Ping、温度等 |
 | 基础管理 | 防火墙、APK 软件包管理、IPv6、PPPoE、HTTPS LuCI、uHTTPd 设置 |
 | 维护工具 | 网页终端、htop、nano、curl、tcpdump、tcping、ethtool、lscpu、lsof、温度工具、CoreMark、SFTP |
-| 外观 | Aurora **1.4.0**、Bootstrap、中文翻译 |
+| 外观 | Orchard **0.3.0-r1**、Bootstrap、中文翻译 |
 
 代理核心仅选择 Xray；`v2ray-geoip` / `v2ray-geosite` 是规则数据。当前固件未包含独立 V2Ray、Shadowsocks、Sing-box 核心，也未编入 `qcserial` 或 PCIe 蜂窝模块驱动。
 
@@ -178,7 +178,7 @@ bash scripts/check-openfi6c.sh
 | `package/mtk/applications/luci-app-openfi/` | 风扇、实体开关及设备管理 |
 | `package/passwall2/`、`package/passwall-packages/` | PassWall2 与依赖源码 |
 | `package/tailscale-community/`、`package/openlist/` | Tailscale 社区版、OpenList |
-| `package/user-apps/`、`package/luci-theme-aurora/` | 其他应用及主题源码 |
+| `package/user-apps/`、`package/luci-theme-orchard/` | 其他应用及主题源码 |
 | `tests/openfi6c/` | 适配回归检查 |
 
 ## 上游与许可
