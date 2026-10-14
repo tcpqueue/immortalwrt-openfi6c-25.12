@@ -1,8 +1,0 @@
-{
- "admin/status/orchard": {
-  "title": "Orchard",
-  "order": 99,
-  "action": { "type": "view", "path": "orchard/overview" },
-  "depends": { "acl": ["luci-theme-orchard"] }
- }
-}

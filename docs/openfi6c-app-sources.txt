@@ -2,7 +2,7 @@ package/passwall2: https://github.com/Openwrt-Passwall/openwrt-passwall2.git @ 4
 package/passwall-packages: https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git @ 1af0a5c4fb3a227201683b64d32f61c65db9be72
 package/tailscale-community: https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community.git @ d9a3954213a09e428643db84cce4a2a232727f13
 package/openlist: https://github.com/OpenListTeam/OpenList-OpenWRT.git @ 4bf72661c700d7209e78228f3d3c618443d5b9df
-package/luci-theme-orchard: https://github.com/tcpqueue/luci-theme-orchard.git @ eea5dc493e3fbee397756774ab3ce9f557bc3fd4 (0.3.0-r1)
+package/luci-theme-aurora: https://github.com/eamonxg/luci-theme-aurora.git @ 84c27b66952e6fc4be60128067a6b88bfd34afb5
 package/user-apps/luci-app-diskman: feeds/luci/applications/luci-app-diskman @ d6167ea0645cbd1327708d85f94824f42d0eb872
 package/user-apps/luci-app-samba4: feeds/luci/applications/luci-app-samba4 @ d6167ea0645cbd1327708d85f94824f42d0eb872
 package/user-apps/luci-app-timewol: feeds/luci/applications/luci-app-timewol @ d6167ea0645cbd1327708d85f94824f42d0eb872

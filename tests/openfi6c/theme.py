@@ -20,7 +20,7 @@ esac
 
 
 class ThemeDefaultTests(unittest.TestCase):
-    def run_script(self, values, board='openfi,6c', themes=('orchard', 'bootstrap')):
+    def run_script(self, values, board='openfi,6c', themes=('aurora', 'bootstrap')):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             (base / 'tmp/sysinfo').mkdir(parents=True)
@@ -37,32 +37,34 @@ class ThemeDefaultTests(unittest.TestCase):
                 os.environ, OPENFI_ROOT=tmp, TEST_UCI=str(db), PATH=f'{bin_dir}:{os.environ["PATH"]}'))
             return dict(line.split('=', 1) for line in db.read_text().splitlines())
 
-    def test_fresh_install_uses_orchard(self):
-        result = self.run_script({'luci.main.mediaurlbase': '/luci-static/bootstrap'})
-        self.assertEqual(result['luci.main.mediaurlbase'], '/luci-static/orchard')
-        self.assertEqual(result['luci.main.openfi_theme'], '1')
+    def test_orchard_upgrade_returns_to_aurora(self):
+        result = self.run_script({'luci.main.mediaurlbase': '/luci-static/orchard',
+                                  'luci.themes.Orchard': '/luci-static/orchard',
+                                  'luci.main.openfi_theme': '1'})
+        self.assertEqual(result['luci.main.mediaurlbase'], '/luci-static/aurora')
+        self.assertNotIn('luci.themes.Orchard', result)
+        self.assertNotIn('luci.main.openfi_theme', result)
 
-    def test_aurora_upgrade_moves_to_orchard(self):
-        result = self.run_script({'luci.main.mediaurlbase': '/luci-static/aurora',
-                                  'luci.themes.Aurora': '/luci-static/aurora'})
-        self.assertEqual(result['luci.main.mediaurlbase'], '/luci-static/orchard')
-        self.assertNotIn('luci.themes.Aurora', result)
-
-    def test_later_choice_is_kept(self):
-        values = {'luci.main.mediaurlbase': '/luci-static/bootstrap', 'luci.main.openfi_theme': '1'}
+    def test_chosen_theme_is_kept(self):
+        values = {'luci.main.mediaurlbase': '/luci-static/bootstrap'}
         self.assertEqual(self.run_script(values)['luci.main.mediaurlbase'], '/luci-static/bootstrap')
 
-    def test_missing_theme_is_repaired(self):
-        values = {'luci.main.mediaurlbase': '/luci-static/argon', 'luci.main.openfi_theme': '1'}
-        self.assertEqual(self.run_script(values)['luci.main.mediaurlbase'], '/luci-static/orchard')
+    def test_aurora_is_kept(self):
+        values = {'luci.main.mediaurlbase': '/luci-static/aurora'}
+        self.assertEqual(self.run_script(values)['luci.main.mediaurlbase'], '/luci-static/aurora')
 
-    def test_installed_custom_theme_is_kept(self):
+    def test_missing_theme_falls_back_to_aurora(self):
         values = {'luci.main.mediaurlbase': '/luci-static/argon'}
-        result = self.run_script(values, themes=('orchard', 'bootstrap', 'argon'))
-        self.assertEqual(result['luci.main.mediaurlbase'], '/luci-static/argon')
+        self.assertEqual(self.run_script(values)['luci.main.mediaurlbase'], '/luci-static/aurora')
+
+    def test_installed_orchard_is_left_alone(self):
+        values = {'luci.main.mediaurlbase': '/luci-static/orchard', 'luci.themes.Orchard': '/luci-static/orchard'}
+        result = self.run_script(values, themes=('aurora', 'bootstrap', 'orchard'))
+        self.assertEqual(result['luci.main.mediaurlbase'], '/luci-static/orchard')
+        self.assertEqual(result['luci.themes.Orchard'], '/luci-static/orchard')
 
     def test_other_boards_unchanged(self):
-        values = {'luci.main.mediaurlbase': '/luci-static/bootstrap'}
+        values = {'luci.main.mediaurlbase': '/luci-static/orchard'}
         self.assertEqual(self.run_script(values, board='other,board'), values)
 
 
