@@ -14,8 +14,7 @@ dtc -I dts -O dtb -o .build-local/openfi6c-mtwifi.dtb \
 for test in board fan reload hardware usb_wan hnat_rx theme; do
     uv run --no-project --python .venv/bin/python "tests/openfi6c/$test.py"
 done
-lua tests/openfi6c/form.lua
-while IFS= read -r -d '' file; do luac -p "$file"; done < <(find package/mtk/applications/luci-app-openfi/luasrc -name '*.lua' -print0)
+node tests/openfi6c/view.cjs
 while IFS= read -r -d '' file; do
     if head -1 "$file" | grep -q '^#!/bin/sh'; then sh -n "$file"; fi
 done < <(find package/mtk/applications/luci-app-openfi/root -type f -print0)

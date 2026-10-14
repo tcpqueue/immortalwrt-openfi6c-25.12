@@ -1,0 +1,24 @@
+{
+	"luci-app-openfi": {
+		"description": "Grant access to OpenFi fan, switch and modem settings",
+		"read": {
+			"file": {
+				"/var/run/openfi-fan.json": [ "read" ],
+				"/tmp/run/openfi-fan.json": [ "read" ],
+				"/sys/class/thermal/thermal_zone0/temp": [ "read" ],
+				"/sys/devices/virtual/thermal/thermal_zone0/temp": [ "read" ],
+				"/sys/class/pwm/pwmchip0/export": [ "list" ],
+				"/sys/devices/platform/*/pwm/pwmchip0/export": [ "list" ]
+			},
+			"ubus": {
+				"file": [ "read", "stat" ],
+				"luci": [ "getUnixtime" ],
+				"service": [ "list" ]
+			},
+			"uci": [ "openfi" ]
+		},
+		"write": {
+			"uci": [ "openfi" ]
+		}
+	}
+}

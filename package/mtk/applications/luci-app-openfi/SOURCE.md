@@ -9,5 +9,5 @@ Ported to chasey-dev/immortalwrt-mt798x-rebase, branch 25.12.
 Retains the previously tested CPU-only four-point fan control, inverted 25 kHz dual PWM,
 5% minimum output, cold-start initialization and form validation fixes.
 The physical switch controls modem power or LEDs. Network settings are not changed.
-Legacy Lua LuCI dependencies are declared explicitly for 25.12.
+Since 2026.10.15 the page is a LuCI JavaScript view (menu.d, rpcd ACL); it only depends on luci-base.
 Factory test tools and the hard-coded 24.10 opkg repository file are omitted.

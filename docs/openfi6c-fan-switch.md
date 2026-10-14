@@ -11,16 +11,9 @@ OpenFi 管理插件 `2026.09.12-r2` 修复两处行为：
 
 ## 验证
 
-- `tests/openfi6c/curve.cjs` 使用 Chromium、实际曲线和滑块模板，以及仓库 LuCI 的 CBI 依赖处理代码。覆盖模式往返、手动 100%、未保存曲线、保存后重建页面、下限冲突。旧版可复现四点被改成 100%，修复版保留原值。
-- `tests/openfi6c/form.lua` 使用实际 CBI 解析函数，验证模式往返保存独立参数，拒绝冲突下限而不覆盖曲线。
+- 当时的 `curve.cjs`（Chromium 中运行曲线和滑块模板）和 `form.lua`（实际 CBI 解析函数）覆盖模式往返、手动 100%、未保存曲线、保存后重建页面和下限冲突。2026.10.15-r1 改为 JavaScript 视图后，由 `view.cjs` 和 `luci-vm.mjs` 取代，见下文。
 - `tests/openfi6c/reload.py` 在模拟 sysfs/UCI 环境运行实际风扇进程，发送 HUP 切换手动与自动，检查进程、PWM 和曲线保留，同时检查停转起步助推及过热保护。
 - 原有风扇、硬件、USB WAN、设备树和 HNAT 检查继续由 `scripts/check-openfi6c.sh` 执行。
-
-浏览器检查需 Node.js 20 或以上、Playwright 及其 Chromium。在项目测试环境可用这些依赖后执行：
-
-```sh
-node tests/openfi6c/curve.cjs
-```
 
 ## 发布状态
 
@@ -37,3 +30,20 @@ node tests/openfi6c/curve.cjs
 - 移除无需登录即可访问的工厂测试页 `admin/op_help/mfg_info`。该页每次请求执行多条命令，公开 SSID、MAC、LAN IP 等信息，依赖的 `op_factory.sh` 未打包，引用的 eth1、mtd3 在 25.12 已不适用。
 
 fan.py、hardware.py、reload.py 新增对应回归用例，旧代码均失败，修复后在 dash 和目标 busybox ash 下均通过。
+
+## 2026.10.15-r1
+
+管理页面由 Lua CBI 改为 LuCI JavaScript 视图（`htdocs/luci-static/resources/view/openfi/settings.js`），菜单和权限分别由 `menu.d`、`rpcd/acl.d` 声明。插件只依赖 luci-base，配置项、默认值和风扇服务不变；保存并应用后仍由 procd 的 openfi 重载触发器通知风扇进程。
+
+- 页面去掉自带的配色、渐变卡片和覆盖主题的区块样式。运行状态为普通表格，曲线颜色取主题变量（Aurora 的 `--brand`、Bootstrap 的 `--primary-color-high`），浅色、深色和手机布局随主题变化。
+- 手动输出、最低稳定输出、强制全速温度和采样间隔改用标准输入框；低温停转为标准复选框。四个基准点在曲线下方以网格输入，拖动和方向键微调保留。
+- 菜单不再显示只有一项的“OpenFi Settings”页签；原地址 `admin/openfi/openfi6/settings` 仍可打开。
+- 手动输出和实体开关接管时的页面设置使用 `retain` 保留；最低稳定输出、强制全速温度与曲线冲突时拒绝保存，不改写曲线。旧三档配置（level、cpu_temp_low/high）继续用于推算初始下限和曲线。
+- 运行状态由浏览器经 rpcd 读取 `/var/run/openfi-fan.json`、CPU 温度和服务状态，以路由器时间（`luci.getUnixtime`）判断数据是否过期。rpcd 会对符号链接解析后的真实路径再次检查授权，ACL 同时列出 `/tmp/run/openfi-fan.json`、`/sys/devices/virtual/thermal/thermal_zone0/temp` 和 PWM 控制器的实际路径。
+- 修复旧状态接口的一处错误：风扇状态过期且温度传感器不可读时，`tonumber(nixio.fs.readfile(...))` 把读取失败的错误信息当作进制参数，接口返回 500，页面只显示“状态接口未返回数据”，看不到“风扇进程未运行”等诊断。
+
+验证：
+
+- `tests/openfi6c/view.cjs`（纯 Node.js，已加入 `check-openfi6c.sh`）检查曲线规则、旧配置推算、状态过期与传感器缺失、rpc 失败时的处理，以及菜单和 ACL 文件。
+- `tests/openfi6c/luci-vm.mjs` 在 ImmortalWrt 25.12.2 x86 虚拟机的真实 LuCI 中操作页面并读取 UCI：手动 100% 与自动来回切换两次，曲线和手动值保留；在网格中修改基准点后保存；下限与曲线冲突时拒绝保存；实体开关接管 5G 电源后页面设置保留；仅有旧三档配置时推算并保存下限和曲线。该脚本会改写测试机的 /etc/config/openfi，只能用于一次性测试环境。
+- 在 Aurora 与 Bootstrap 的浅色、深色和 390 像素手机布局下截图检查，页面无横向溢出，OpenFi 页面本身无脚本错误。虚拟机没有 PWM 与温度传感器，这两项 ACL 路径按设备树推定，尚待实机确认。

@@ -1,0 +1,29 @@
+{
+	"admin/openfi": {
+		"title": "OpenFi",
+		"order": 25,
+		"action": {
+			"type": "firstchild"
+		}
+	},
+
+	"admin/openfi/openfi6": {
+		"title": "OpenFi 6C",
+		"order": 100,
+		"action": {
+			"type": "view",
+			"path": "openfi/settings"
+		},
+		"depends": {
+			"acl": [ "luci-app-openfi" ],
+			"uci": { "openfi": true }
+		}
+	},
+
+	"admin/openfi/openfi6/settings": {
+		"action": {
+			"type": "alias",
+			"path": "admin/openfi/openfi6"
+		}
+	}
+}
