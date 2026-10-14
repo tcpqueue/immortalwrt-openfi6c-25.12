@@ -30,6 +30,12 @@ Linux 6.12 usbnet 会根据驱动标记和 MAC 地址命名：RNDIS/ECM 使用�
 
 新仓库 hnat-detect 在接口上线后识别外部 WAN，选择实体 GMAC 作为 PPD，并建立 rxppd 加入 LAN 桥用于回送；不需要复制旧设备树中的空 GMAC0。已选择 kmod-mediatek_hnat、kmod-warp、hnat-detect 和 kmod-dummy。USB 收发及协议解封装仍由 CPU/驱动处理，符合条件的转发/NAT 才进入 PPE。接口注册或加入桥不等于已实测硬件流表绑定。
 
+## 5G 雷达检测（DFS）
+
+默认 5G 配置不做雷达检测：wifi-profile 的 mt7981.dbdc.b1.dat 为 DfsEnable=0，驱动的 DfsRadarChannelCheck 因此始终返回假，启动和切换信道时不进行 CAC 等待，也不会因雷达改变信道或带宽；CERegCacEn 未设置，同样不启用。无线后端默认 5G 为 HE160，国家码 CN 下使用 36–64，其中 52–64 在国内规定须做雷达检测，请按当地法规决定是否改为 HE80 或固定 36–48、149–161 信道。
+
+编译选项 MTK_MT_DFS_SUPPORT 保持开启。该版本 MT WiFi SDK 在关闭此项时无法编译（WARP 与 WAPP 头文件引用 DFS_AVAILABLE_LIST_CH_NUM、PDFS_PARAM），运行时开关已足以关闭雷达检测。
+
 ## 构建
 
 在现有 WSL Linux 原生项目目录执行（先按 README 创建 CPython 3.12.14 虚拟环境）：
@@ -77,5 +83,7 @@ Xray 26.10.10 的 go.mod 要求 Go 1.27。package/build-tools/golang 提供适�
 2026-09-12 已收到实机使用正常、USB 硬件加速可用的反馈；尚未记录标准化吞吐或射频测试数据。设备树编译的几项警告来自公共 SoC 节点；运行检查脚本后可在 `.build-local/dtc.log` 查看。
 
 2026-10-13 同步上游 468e251 并更新 PassWall2 26.10.1、Xray 26.10.10、Tailscale LuCI d9a3954、OpenList OpenWrt 4bf7266、Go 1.27.2 及 OpenFi 插件 2026.10.13-r1，并以 Orchard 0.3.0-r1 替换 Aurora 后，make download -j16 和 make -j16 返回 0，Xray 实际由 Go 1.27.2 编译，check-openfi6c.sh 与软件包选择检查通过。5119 按上游新的收包代码重写，详见 openfi6c-usb-hnat.md。Orchard 已在 ImmortalWrt 25.12.2 x86 虚拟机检查登录、状态、系统、网络、防火墙和 OpenFi 页面的浅色、深色及手机布局。该版本升级包约 89.70 MiB，SHA-256 为 41a7e3ad09ae7e5813e27e4bba6ad2f8c6ae934691c584d5576c7dcbcd893f16，尚未实机验证。
+
+2026-10-15 以 Aurora 1.4.0 替换 Orchard，OpenFi 插件改为 LuCI JavaScript 视图（2026.10.15-r1），在线软件源改用 mirrors.pku.edu.cn 并去掉 video 源后，make download -j16 和 make -j16 返回 0，check-openfi6c.sh 与软件包选择检查通过。解包 sysupgrade 核对 distfeeds、apk 签名公钥、主题、OpenFi 文件和 5G 默认 DfsEnable=0。软件清单与 2026-10-14 版相比仅 luci-app-openfi、其中文包版本及主题不同。升级包约 89.84 MiB，SHA-256 为 ba613a7f8dfa878eab9fb3e49384dc51a136efead25317ae20c1c090a80654aa，尚未实机验证。
 
 从此前 24.10 固件升级时，先备份配置，建议不保留旧配置。新版实体接口从旧 eth1 变为 eth0，并使用新的无线配置后端，直接保留旧 network/wireless 可能使网络预设无法生效。
