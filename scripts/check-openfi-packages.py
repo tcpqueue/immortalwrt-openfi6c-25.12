@@ -12,4 +12,7 @@ for parent in ('passwall2', 'passwall-packages', 'tailscale-community', 'openlis
     for file in (root / 'package' / parent).rglob('Makefile'):
         assert not any((root / 'package/feeds').glob('*/' + file.parent.name)), file
 assert not any(word in (root / 'feeds.conf.default').read_text() for word in ('passwall', 'openlist', 'tailscale', 'aurora'))
-print('OpenFi 6C target, all requested selections, Xray-only proxy core and direct package sources verified.')
+# Online packages come from the PKU mirror; ImmortalWrt publishes no 25.12 video feed.
+assert 'CONFIG_VERSION_REPO="https://mirrors.pku.edu.cn/immortalwrt/releases/25.12-SNAPSHOT"' in config
+assert 'CONFIG_FEED_video=y' not in config and 'CONFIG_FEED_video=m' not in config
+print('OpenFi 6C target, all requested selections, Xray-only proxy core and direct package sources and package mirror verified.')
