@@ -21,3 +21,17 @@ OpenFi 6C 的 ImmortalWrt 25.12 固件。内核、USB HNAT、无线驱动和 Pas
 从 2026-09-12 版升级时：若之前取消勾选过“反转模块复位引脚”，旧版本中该选项不起作用，新版本会实际将复位引脚设为 0。使用移远模块时请保持默认勾选。
 
 下载 `OpenFi6C-25.12-20261015-sysupgrade.bin`，并使用附件 `sha256sums` 核验。`packages.manifest` 为此固件的软件清单。
+
+### 加装包：luci-app-mt5700（MT5700M 5G 模组管理）
+
+单独提供，固件未内置。来自 [LianXia233/luci-app-mt5700](https://github.com/LianXia233/luci-app-mt5700) v1.14.21（`ea320a6`，GPL-3.0），用本固件的 25.12 构建环境编译，架构 aarch64_cortex-a53，内含 Rust 后端（静态链接）。唯一改动是让中文翻译包使用 1.14.21 版本号；对应源码见 `luci-app-mt5700-1.14.21-src.tar.gz`（含改动与编译说明）。
+
+上传两个 apk 到路由器后安装：
+
+```sh
+apk add --allow-untrusted /tmp/luci-app-mt5700-1.14.21-r1.apk /tmp/luci-i18n-mt5700-zh-cn-1.14.21.apk
+```
+
+- 安装后服务自动启动，并创建 `MT5700M`、`MT5700Mv6` 接口加入 WAN 区域；这两个接口被删除后，服务启动时会重新创建。固件预设的 `wan`、`wan6` 也使用模组的 `usb0`，同一网卡会运行两套 DHCP，请在“网络 → 接口”中删除 `wan`、`wan6`。
+- 固件已包含所需的 busybox nc、USB 串口（option、ACM）及 ECM/NCM/RNDIS/MBIM 驱动。
+- 未在 OpenFi 6C 搭配 MT5700M 的实机上验证；包签名为本构建的私钥，需 `--allow-untrusted` 安装。
