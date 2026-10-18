@@ -1,0 +1,33 @@
+Subject: [PATCH] mtk: mt_wifi: don't log 2.4 GHz as invalid in VHT groups
+
+BuildChannelList() asks vht80_channel_group() and vht160_channel_group()
+about every channel, including the 2.4 GHz list.  Both fall through to
+the default case for CMD_CH_BAND_24G and log "invalid ch_band 0" for
+each channel (26 lines per 2.4 GHz start) before returning FALSE.
+
+Return FALSE for 2.4 GHz without the error; the result is unchanged.
+
+--- a/mt_wifi/embedded/mgmt/mgmt_vht.c
++++ b/mt_wifi/embedded/mgmt/mgmt_vht.c
+@@ -1977,6 +1977,10 @@ BOOLEAN vht80_channel_group(RTMP_ADAPTER
+ 		}
+ 		break;
+ 
++	case CMD_CH_BAND_24G:
++		/* 2.4 GHz has no 80/160 MHz channel groups. */
++		break;
++
+ 	default:
+ 		MTWF_DBG(pAd, DBG_CAT_PROTO, DBG_SUBCAT_ALL, DBG_LVL_ERROR,
+ 			"invalid ch_band %d\n", ch_band);
+@@ -2068,6 +2072,10 @@ BOOLEAN vht160_channel_group(RTMP_ADAPTE
+ 		}
+ 		break;
+ 
++	case CMD_CH_BAND_24G:
++		/* 2.4 GHz has no 80/160 MHz channel groups. */
++		break;
++
+ 	default:
+ 		MTWF_DBG(pAd, DBG_CAT_PROTO, DBG_SUBCAT_ALL, DBG_LVL_ERROR,
+ 			"invalid ch_band %d\n", ch_band);

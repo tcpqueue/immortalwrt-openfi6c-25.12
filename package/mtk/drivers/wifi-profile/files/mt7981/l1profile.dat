@@ -1,5 +1,7 @@
 Default
 INDEX0=MT7981
+INDEX0_debug_level=1
+INDEX0_debug_option=1:0:0:1
 INDEX0_profile_path=/etc/wireless/mediatek/mt7981.dbdc.b0.dat;/etc/wireless/mediatek/mt7981.dbdc.b1.dat
 INDEX0_init_script=/lib/wifi/mtwifi.lua;/lib/wifi/mtwifi.lua
 INDEX0_init_compatible=mtwifi;mtwifi

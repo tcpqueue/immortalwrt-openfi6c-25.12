@@ -1,0 +1,27 @@
+Subject: [PATCH] mtk: mt_wifi: skip ACK/CTS timeout setup when disabled
+
+The profile parser always stores the default CCK/OFDM/OFDMA ACK
+timeouts, so set_datcfg_ack_cts_timeout() tries to program them on
+every interface start.  When ACK_CTS_TOUT_EN is not set (the default),
+set_ack_timeout_mode_byband() refuses each write and the driver logs
+"CTS/ACK FEATURE is not enable" and "DAT config band(x) ... Fail"
+twelve times per Wi-Fi start.
+
+No timeout was ever applied on that path, so skip disabled bands.
+
+--- a/mt_wifi/embedded/common/cmm_cfg.c
++++ b/mt_wifi/embedded/common/cmm_cfg.c
+@@ -13627,6 +13627,13 @@ INT32 set_datcfg_ack_cts_timeout (RTMP_A
+ 	}
+ 
+ 	for (idx = 0; idx < DBDC_BAND_NUM; idx++) {
++		/* The profile parser always stores default timeouts, but
++		 * set_ack_timeout_mode_byband() rejects every write while
++		 * ACK_CTS_TOUT_EN is off.  Nothing would be applied, so
++		 * skip the band instead of logging six errors for it. */
++		if (!pAd->CommonCfg.ack_cts_enable[idx])
++			continue;
++
+ 		if (pAd->CommonCfg.distance[idx] > 0) {
+ 			value = pAd->CommonCfg.distance[idx];
+ 			value = (value / LIGHT_SPEED * 2) & MAX_ACK_TIMEOUT;
