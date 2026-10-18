@@ -1,5 +1,7 @@
-package/passwall2: https://github.com/Openwrt-Passwall/openwrt-passwall2.git @ 492309ea672c9c40725e2a72cb4d4f1625d9ee53
-package/passwall-packages: https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git @ 1af0a5c4fb3a227201683b64d32f61c65db9be72
+package/passwall2: https://github.com/Openwrt-Passwall/openwrt-passwall2.git @ e3788855d3cb3ddc3f4027ea2480d7c19019f033
+package/passwall-packages: https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git @ 3ab13856aadb93642325a504b94ab9796fe55ee1
+package/passwall: https://github.com/Openwrt-Passwall/openwrt-passwall.git @ 00202bb00d3781d33ad29057e4e833a833d476dc
+package/qfirehose: https://github.com/FUjr/QModem.git (application/qfirehose) @ 73d18392db358fb4a0da6ace1af0d07978bae324
 package/tailscale-community: https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community.git @ d9a3954213a09e428643db84cce4a2a232727f13
 package/openlist: https://github.com/OpenListTeam/OpenList-OpenWRT.git @ 4bf72661c700d7209e78228f3d3c618443d5b9df
 package/luci-theme-aurora: https://github.com/eamonxg/luci-theme-aurora.git @ 84c27b66952e6fc4be60128067a6b88bfd34afb5
@@ -37,4 +39,4 @@ Go 1.27.2 build recipe adapted from feeds/packages/lang/golang at 84bd8638492895
 Common multi-version build helpers are copied unchanged. Only the 1.27 compiler recipe is registered here; standard Go 1.26 and bootstrap remain provided by the standard packages feed.
 Source: https://go.dev/dl/go1.27.2.src.tar.gz
 SHA256: 03495da2ba64894d40f5c4992e49454fa78b50690604ff92b6afff5081b76e62
-Xray 26.10.10 and OpenList 4.2.6 explicitly use golang1.27/host.
+Xray 26.10.17 and OpenList 4.2.6 explicitly use golang1.27/host.
