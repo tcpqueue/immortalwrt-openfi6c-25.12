@@ -86,4 +86,6 @@ Xray 26.10.10 的 go.mod 要求 Go 1.27。package/build-tools/golang 提供适�
 
 2026-10-15 以 Aurora 1.4.0 替换 Orchard，OpenFi 插件改为 LuCI JavaScript 视图（2026.10.15-r1），在线软件源改用 mirrors.pku.edu.cn 并去掉 video 源后，make download -j16 和 make -j16 返回 0，check-openfi6c.sh 与软件包选择检查通过。解包 sysupgrade 核对 distfeeds、apk 签名公钥、主题、OpenFi 文件和 5G 默认 DfsEnable=0。软件清单与 2026-10-14 版相比仅 luci-app-openfi、其中文包版本及主题不同。升级包约 89.84 MiB，SHA-256 为 ba613a7f8dfa878eab9fb3e49384dc51a136efead25317ae20c1c090a80654aa，尚未实机验证。
 
+2026-10-18 在 OpenFi 6C 实机（RM520N-EU，ECM）上运行 2026-10-15 版：启动、千兆网口、2.4G/5G WiFi、usb0 DHCP（IPv4/IPv6）、USB HNAT 上下行 BIND、风扇服务和 USB 存储挂载均正常，驱动读取的 EEPROM 与 Factory 分区一致。按实机 dmesg 为 MT WiFi 7.6.7.3 增加补丁 042（ACK/CTS 超时功能关闭时跳过设置）和 043（2.4G 查询 80/160MHz 信道组时不再报 invalid ch_band），l1profile 补充 INDEX0_debug_level=1 与 INDEX0_debug_option=1:0:0:1；补丁驱动已上机重启验证，上述误报均消失。make -j16 返回 0，软件清单与 2026-10-15 版一致。升级包约 89.84 MiB，SHA-256 为 0a99af39ca829640602d4082fba63792329a1fef9f35119bf8ce1f9538287590。
+
 从此前 24.10 固件升级时，先备份配置，建议不保留旧配置。新版实体接口从旧 eth1 变为 eth0，并使用新的无线配置后端，直接保留旧 network/wireless 可能使网络预设无法生效。
