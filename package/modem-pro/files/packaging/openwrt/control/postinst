@@ -1,0 +1,75 @@
+#!/bin/sh
+# opkg 安装后执行（postinst）。IPKG_INSTROOT 非空说明是在离线 rootfs 里预装（不启动服务）。
+[ -n "$IPKG_INSTROOT" ] && exit 0
+
+chmod +x /usr/bin/modemd /etc/init.d/modemd 2>/dev/null
+# 四个厂商拨号器（本包自带的三份 + 用户可能自己放的 simcom-cm）都补一次 +x：
+# simcom-cm 是用户手工丢进 /usr/lib/modemd/ 的，没这一步就得自己 chmod（README 里写了，
+# 但顺手做掉更省事）。
+for d in quectel-CM fibocom-dial meig-cm simcom-cm; do
+  [ -f "/usr/lib/modemd/$d" ] && chmod +x "/usr/lib/modemd/$d" 2>/dev/null
+done
+[ -f /lib/netifd/proto/quectel.sh ] && chmod +x /lib/netifd/proto/quectel.sh
+
+# 装完就能用：注册开机自启并立刻起一次（卸载时 prerm 会 stop + disable）
+/etc/init.d/modemd enable 2>/dev/null
+/etc/init.d/modemd restart 2>/dev/null
+
+echo "modemd 已安装："
+echo "  包名：      modemd-pro（2026-10-02 由 modemd 改名；二进制/服务/配置路径没变）"
+echo "  状态：      /etc/init.d/modemd status"
+echo "  开机自启：  已 enable（/etc/rc.d/S99modemd）"
+echo "  配置：      /etc/modemd/config.toml（改完 restart 生效）"
+# 端口是可配置的（config.toml 的 [server] listen，默认 9527）⇒ 按实际配置打印
+__port=$(sed -n 's/.*listen[[:space:]]*=[[:space:]]*"[^"]*:\([0-9][0-9]*\)".*/\1/p' /etc/modemd/config.toml 2>/dev/null | head -1)
+case "$__port" in ''|*[!0-9]*) __port=9527 ;; esac
+echo "  页面：      默认 http://<路由器地址>:$__port/"
+echo "  HTTPS：     在 /etc/modemd/config.toml 的 [server] 设置 tls_enabled=true 后 restart。"
+echo "  看日志：    logread -e modemd   （或 /var/log/modemd.log）"
+echo "  串口权限：  需要能访问 /dev/ttyUSB* 或 /dev/ttyACM*（默认就是 root 运行）"
+echo ""
+echo "QMI 模组（USB 类型 0）：接口用 proto=dhcp（地址/路由/DNS 由 netifd 的 DHCP 取），"
+echo "数据呼叫（QMI 建 PDN → wwan0 起来）由 modemd 自己托管的主机侧拨号器做。**按厂商各一份，"
+echo "不能互相顶替**（QMI 初始化序列与私有服务各家不同）："
+echo "  移远 Quectel（EC20/RM500 等）      → /usr/lib/modemd/quectel-CM   （自带源码）"
+echo "  广和通 Fibocom（FM150/FM350/FM650）→ /usr/lib/modemd/fibocom-dial （自带源码）"
+echo "  美格 MeiG（SRM815/SLM750）         → /usr/lib/modemd/meig-cm      （自带源码）"
+echo "  芯讯通 SIMCom（SIM7600/SIM8200）   → /usr/lib/modemd/simcom-cm    （自带源码）"
+echo "  四份都随包安装。想换厂商给的更新版本：覆盖 /usr/lib/modemd/<名字> 或用"
+echo "  [net] host_dial_bin 指过去，不用重启（下一轮组网循环就会用新的）。"
+echo "  拿 quectel-CM 拨 SIMCom 会报 QMIType 11 has no clientID / QMUXError 0xe，拨不起来"
+echo "  注意：装在私有路径，不动固件自带的 quectel-CM-5G / /usr/bin/quectel-CM"
+echo "  旧版建过的 modem<N> 接口（proto=qmi / proto=quectel / 上一版的 none）会被自动改成"
+echo "  proto=dhcp 并改绑到网卡（wwan0），日志里能看到；不想用就把 [net] 的 host_dial 改成 false"
+echo "  /lib/netifd/proto/quectel.sh 仍随包装着（netifd 的 proto=quectel），留给手工配置；"
+echo "  手工用它的话要重启一次网络让 netifd 认识新协议：/etc/init.d/network restart"
+echo ""
+echo "用的是 LuCI 的话，再装同目录的 luci-app-modemd-pro_*.ipk，"
+echo "菜单就会多出「5G终端」（设备中心 / 服务控制），里面能启停服务并内嵌这个页面。"
+
+# ---------------------------------------------------------------- 升级提示 ---
+# opkg 把 /etc 下的文件当 conffile：用户改过的 config.toml 不会被覆盖，
+# 新版默认值另存成 config.toml-opkg，并在安装结尾打印一行 "resolve_conffiles" 提示。
+# 那一行**不是安装失败**（很多人会当成失败来问），所以在这里把话说清楚。
+if [ -f /etc/modemd/config.toml-opkg ]; then
+  echo ""
+  echo "――――――――――――――――――――――――――――――――――――――――――――――――――――――――"
+  echo "关于安装时那行提示："
+  echo "  * resolve_conffiles: Existing conffile /etc/modemd/config.toml is different ..."
+  echo "  这不是安装失败：你改过的 config.toml **原样保留**，包已经装好了。"
+  echo "  opkg 把新版自带的默认配置放在了 /etc/modemd/config.toml-opkg。"
+  echo ""
+  echo "要做什么？一般什么都不用做："
+  echo "  * 本版新增功能（IMEI 管理 / USB 网卡模式 / 组网模式偏好 / 页脚版本号）"
+  echo "    **不需要新增配置项**，老配置直接能用（缺的项代码里有默认值兜底）。"
+  # 有 diff 就把"两份配置差多少行"顺口报一下（busybox 可能没带 diff，所以要判断）
+  if command -v diff >/dev/null 2>&1; then
+    _n=$(diff /etc/modemd/config.toml /etc/modemd/config.toml-opkg 2>/dev/null | grep -c '^[<>]')
+    echo "  * 两份配置相差 $_n 行（大多数是注释与默认值写法）"
+  fi
+  echo "  * 想看默认值有没有变化：diff /etc/modemd/config.toml /etc/modemd/config.toml-opkg"
+  echo "  * 确认没问题后可以直接删掉它：rm /etc/modemd/config.toml-opkg"
+  echo "  * 确认版本：opkg list-installed | grep modemd   或看页面页脚的版本号"
+  echo "――――――――――――――――――――――――――――――――――――――――――――――――――――――――"
+fi
+exit 0

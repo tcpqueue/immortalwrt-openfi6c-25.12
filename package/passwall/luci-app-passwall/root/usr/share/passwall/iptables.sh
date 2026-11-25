@@ -817,7 +817,7 @@ filter_node() {
 	local address=$(config_n_get "$node" address)
 	local port=$(config_n_get "$node" port)
 	local hop=$(config_n_get "$node" hysteria2_hop)
-	[ -n "$hop" ] && port="${port:+$port,}$hop" 
+	[ -n "$hop" ] && port="${port:+$port,}$hop"
 	[ -z "$address" ] && return 1
 	echo "$address" | grep -Eq "$EXCLUDE_VPSIP" && return 1
 	[ -z "$port" ] && return 1
@@ -877,8 +877,11 @@ set_tproxy_sysctl() {
 	# Disable IPv4 rp_filter for TPROXY compatibility.
 	sysctl -w net.ipv4.conf.all.rp_filter=0 >/dev/null 2>&1
 	sysctl -w net.ipv4.conf.default.rp_filter=0 >/dev/null 2>&1
+	# Tailscale may enable mark-based source validation, which conflicts with TPROXY routing.
+	sysctl -w net.ipv4.conf.all.src_valid_mark=0 >/dev/null 2>&1
+	sysctl -w net.ipv4.conf.default.src_valid_mark=0 >/dev/null 2>&1
 	local f
-	for f in /proc/sys/net/ipv4/conf/*/rp_filter; do
+	for f in /proc/sys/net/ipv4/conf/*/rp_filter /proc/sys/net/ipv4/conf/*/src_valid_mark; do
 		echo 0 > "$f" 2>/dev/null
 	done
 }
@@ -1029,16 +1032,16 @@ add_firewall_rule() {
 	[ -n "$ISP_DNS" ] && {
 		#echolog "处理 ISP DNS 例外..."
 		for ispip in $ISP_DNS; do
-			ipset -! add $IPSET_WHITE $ispip timeout 0
-			echolog "  - [$?]追加ISP IPv4 DNS到白名单：${ispip}"
+			ipset -! add $IPSET_VPS $ispip
+			echolog "  - [$?]追加ISP IPv4 DNS到ipset[$IPSET_VPS]：${ispip}"
 		done
 	}
 
 	[ -n "$ISP_DNS6" ] && {
 		#echolog "处理 ISP IPv6 DNS 例外..."
 		for ispip6 in $ISP_DNS6; do
-			ipset -! add $IPSET_WHITE6 $ispip6 timeout 0
-			echolog "  - [$?]追加ISP IPv6 DNS到白名单：${ispip6}"
+			ipset -! add $IPSET_VPS6 $ispip6
+			echolog "  - [$?]追加ISP IPv6 DNS到ipset[$IPSET_VPS6]：${ispip6}"
 		done
 	}
 
@@ -1468,7 +1471,7 @@ del_firewall_rule() {
 	destroy_ipset $IPSET_WAN
 	destroy_ipset $IPSET_LAN
 	destroy_ipset $IPSET_VPS
-	#destroy_ipset $IPSET_SHUNT
+	destroy_ipset $IPSET_SHUNT
 	#destroy_ipset $IPSET_GFW
 	#destroy_ipset $IPSET_CHN
 	#destroy_ipset $IPSET_BLACK
@@ -1479,12 +1482,17 @@ del_firewall_rule() {
 	destroy_ipset $IPSET_WAN6
 	destroy_ipset $IPSET_LAN6
 	destroy_ipset $IPSET_VPS6
-	#destroy_ipset $IPSET_SHUNT6
+	destroy_ipset $IPSET_SHUNT6
 	#destroy_ipset $IPSET_GFW6
 	#destroy_ipset $IPSET_CHN6
 	#destroy_ipset $IPSET_BLACK6
 	destroy_ipset $IPSET_BLOCK6
 	destroy_ipset $IPSET_WHITE6
+
+	local ipset_name
+	for ipset_name in $(ipset list -name 2>/dev/null | grep -E '^psw_.+_shunt6?$'); do
+		destroy_ipset "$ipset_name"
+	done
 
 	echolog "删除 iptables 规则完成。"
 }
@@ -1597,6 +1605,7 @@ stop() {
 		rm -rf $TMP_PATH2/singbox*
 		rm -rf $TMP_PATH2/dnsmasq*
 		rm -rf $TMP_PATH2/geo_output
+		rm -rf $TMP_PATH2/geodata
 		rm -rf $TMP_PATH2/user_rules
 	}
 	flush_include

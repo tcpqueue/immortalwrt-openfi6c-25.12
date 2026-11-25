@@ -1,0 +1,2065 @@
+[
+  {
+    "vendor": "openluat",
+    "model": "air724ug",
+    "platform": "unisoc",
+    "usb": [
+      "ecm",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+SETUSB?",
+      "modes": {
+        "ecm": "AT+SETUSB=2",
+        "rndis": "AT+SETUSB=1"
+      }
+    }
+  },
+  {
+    "vendor": "huawei",
+    "model": "s10",
+    "platform": "hisilicon",
+    "usb": [
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT^SETMODE?",
+      "note": "Modem-Pro 只给 ecm/ncm 两个参数；rndis(6)/mbim(7) 只在 get_mode 里能认出来；Modem-Pro 只给了 ecm/ncm 的参数，该型号 usb 列表用不到 ⇒ 只给查询指令"
+    }
+  },
+  {
+    "vendor": "huawei",
+    "model": "mt5700m-cn",
+    "platform": "hisilicon",
+    "usb": [
+      "ecm",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT^SETMODE?",
+      "modes": {
+        "ecm": "AT^SETMODE=0",
+        "ncm": "AT^SETMODE=4"
+      },
+      "note": "Modem-Pro 只给 ecm/ncm 两个参数；rndis(6)/mbim(7) 只在 get_mode 里能认出来"
+    }
+  },
+  {
+    "vendor": "huawei",
+    "model": "mt5710_cn",
+    "platform": "hisilicon",
+    "usb": [
+      "ecm",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT^SETMODE?",
+      "modes": {
+        "ecm": "AT^SETMODE=0",
+        "ncm": "AT^SETMODE=4"
+      },
+      "note": "Modem-Pro 只给 ecm/ncm 两个参数；rndis(6)/mbim(7) 只在 get_mode 里能认出来"
+    }
+  },
+  {
+    "vendor": "huawei",
+    "model": "mh5000-31",
+    "platform": "hisilicon",
+    "usb": [
+      "ecm",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT^SETMODE?",
+      "modes": {
+        "ecm": "AT^SETMODE=0",
+        "ncm": "AT^SETMODE=4"
+      },
+      "note": "Modem-Pro 只给 ecm/ncm 两个参数；rndis(6)/mbim(7) 只在 get_mode 里能认出来"
+    }
+  },
+  {
+    "vendor": "huawei",
+    "model": "mh5000-82",
+    "platform": "unisoc",
+    "usb": [
+      "ecm",
+      "ncm",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT^SETMODE?",
+      "modes": {
+        "ecm": "AT^SETMODE=1",
+        "ncm": "AT^SETMODE=2",
+        "rndis": "AT^SETMODE=0"
+      }
+    }
+  },
+  {
+    "vendor": "huawei",
+    "model": "mh5000-82m",
+    "platform": "unisoc",
+    "usb": [
+      "ecm",
+      "ncm",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT^SETMODE?",
+      "modes": {
+        "ecm": "AT^SETMODE=1",
+        "ncm": "AT^SETMODE=2",
+        "rndis": "AT^SETMODE=0"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "em05",
+    "platform": "lte",
+    "usb": [
+      "qmi",
+      "ecm",
+      "mbim",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "em05-cn",
+    "platform": "lte",
+    "usb": [
+      "qmi",
+      "ecm",
+      "mbim",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "ep06",
+    "platform": "lte",
+    "usb": [
+      "qmi",
+      "ecm",
+      "mbim",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "em12",
+    "platform": "lte",
+    "usb": [
+      "qmi",
+      "ecm",
+      "mbim",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "em120k",
+    "platform": "lte12",
+    "usb": [
+      "qmi",
+      "ecm",
+      "mbim",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "em160r-gl",
+    "platform": "lte12",
+    "usb": [
+      "qmi",
+      "ecm",
+      "mbim",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "ag598eeu",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg200u-cn",
+    "platform": "unisoc",
+    "usb": [
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg801",
+    "platform": "hisilicon",
+    "usb": [
+      "ecm",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "note": "Modem-Pro 的 set_mode() 没有 hisilicon 分支（会落到默认 0），参数值未取证 ⇒ 只给查询指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm500u-cn",
+    "platform": "unisoc",
+    "usb": [
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm500u-cnv",
+    "platform": "unisoc",
+    "usb": [
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm500u-ea",
+    "platform": "unisoc",
+    "usb": [
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm500s-ce",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm500q-cn",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm500q-ae",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm500q-gl",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm502q-ae",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm502q-gl",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm505q-ae",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm510q-gl",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm510q-glha",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg500q-ea",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm520n-cn",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm520n-eu",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm520n-gl",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm520f-gl",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm520f-bl",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm521f-gl",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm530n-gl",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rm551e-gl",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg501q-eu",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg520n-eu",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg520n-eb",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg520f-eu",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg520f-eb",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg520f-jo",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg530f-na",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "rg650v-eu",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "mh8001-eu",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "gobinet",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供 Quectel 的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "ec20f",
+    "platform": "lte",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "ec25",
+    "platform": "lte",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "eg25",
+    "platform": "lte",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "ec21",
+    "platform": "lte",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "qmi": "AT+QCFG=\"usbnet\",0",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "quectel",
+    "model": "ec200a",
+    "platform": "lte",
+    "usb": [
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+QCFG=\"usbnet\"",
+      "modes": {
+        "ecm": "AT+QCFG=\"usbnet\",1",
+        "mbim": "AT+QCFG=\"usbnet\",2",
+        "ncm": "AT+QCFG=\"usbnet\",5",
+        "rndis": "AT+QCFG=\"usbnet\",3"
+      }
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "fm650-cn",
+    "platform": "unisoc",
+    "usb": [
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "ecm": "AT+GTUSBMODE=34",
+        "mbim": "AT+GTUSBMODE=40",
+        "ncm": "AT+GTUSBMODE=36",
+        "rndis": "AT+GTUSBMODE=38"
+      }
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "fm350-gl",
+    "platform": "mediatek",
+    "usb": [
+      "rndis"
+    ],
+    "pcie": [
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "rndis": "AT+GTUSBMODE=41"
+      },
+      "note": "Modem-Pro 只给了 rndis=41（mbim 那行是注释掉的）"
+    },
+    "pcie_at": {
+      "note": "MTK 平台 PCIe 走驱动（Modem-Pro 里是 mtk_pcie），没有 AT 切换指令"
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "fm350-gl-00",
+    "platform": "mediatek",
+    "usb": [
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "rndis": "AT+GTUSBMODE=41"
+      },
+      "note": "Modem-Pro 只给了 rndis=41（mbim 那行是注释掉的）"
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "fm350r-gl",
+    "platform": "mediatek",
+    "usb": [
+      "rndis"
+    ],
+    "pcie": [
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "rndis": "AT+GTUSBMODE=41"
+      },
+      "note": "Modem-Pro 只给了 rndis=41（mbim 那行是注释掉的）"
+    },
+    "pcie_at": {
+      "note": "MTK 平台 PCIe 走驱动（Modem-Pro 里是 mtk_pcie），没有 AT 切换指令"
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "rw350r-gl",
+    "platform": "mediatek",
+    "usb": [
+      "rndis"
+    ],
+    "pcie": [
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "rndis": "AT+GTUSBMODE=41"
+      },
+      "note": "Modem-Pro 只给了 rndis=41（mbim 那行是注释掉的）"
+    },
+    "pcie_at": {
+      "note": "MTK 平台 PCIe 走驱动（Modem-Pro 里是 mtk_pcie），没有 AT 切换指令"
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "fm150-ae",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "ecm": "AT+GTUSBMODE=18",
+        "mbim": "AT+GTUSBMODE=30",
+        "ncm": "AT+GTUSBMODE=18",
+        "qmi": "AT+GTUSBMODE=32",
+        "rndis": "AT+GTUSBMODE=24"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供该厂商的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "fm160-cn",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "ecm": "AT+GTUSBMODE=18",
+        "mbim": "AT+GTUSBMODE=30",
+        "ncm": "AT+GTUSBMODE=18",
+        "qmi": "AT+GTUSBMODE=32",
+        "rndis": "AT+GTUSBMODE=24"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供该厂商的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "fm160-eau",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "ecm": "AT+GTUSBMODE=18",
+        "mbim": "AT+GTUSBMODE=30",
+        "ncm": "AT+GTUSBMODE=18",
+        "qmi": "AT+GTUSBMODE=32",
+        "rndis": "AT+GTUSBMODE=24"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供该厂商的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "fm160-na",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "ecm": "AT+GTUSBMODE=18",
+        "mbim": "AT+GTUSBMODE=30",
+        "ncm": "AT+GTUSBMODE=18",
+        "qmi": "AT+GTUSBMODE=32",
+        "rndis": "AT+GTUSBMODE=24"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供该厂商的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "fm170-eau",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "ecm": "AT+GTUSBMODE=18",
+        "mbim": "AT+GTUSBMODE=30",
+        "ncm": "AT+GTUSBMODE=18",
+        "qmi": "AT+GTUSBMODE=32",
+        "rndis": "AT+GTUSBMODE=24"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供该厂商的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "fm190w-gl",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "gobinet",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ],
+    "pcie": [
+      "qmi"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "ecm": "AT+GTUSBMODE=18",
+        "mbim": "AT+GTUSBMODE=30",
+        "ncm": "AT+GTUSBMODE=18",
+        "qmi": "AT+GTUSBMODE=32",
+        "rndis": "AT+GTUSBMODE=24"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供该厂商的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "l610-eu",
+    "platform": "unisoc",
+    "usb": [
+      "ecm",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "ecm": "AT+GTUSBMODE=34",
+        "ncm": "AT+GTUSBMODE=36",
+        "rndis": "AT+GTUSBMODE=38"
+      }
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "nl668",
+    "platform": "lte",
+    "usb": [
+      "ecm",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "ecm": "AT+GTUSBMODE=18",
+        "ncm": "AT+GTUSBMODE=18",
+        "rndis": "AT+GTUSBMODE=24"
+      }
+    }
+  },
+  {
+    "vendor": "fibocom",
+    "model": "nl678",
+    "platform": "lte",
+    "usb": [
+      "qmi",
+      "ecm",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+GTUSBMODE?",
+      "modes": {
+        "ecm": "AT+GTUSBMODE=18",
+        "qmi": "AT+GTUSBMODE=17",
+        "rndis": "AT+GTUSBMODE=24"
+      }
+    }
+  },
+  {
+    "vendor": "meig",
+    "model": "srm815",
+    "platform": "qualcomm",
+    "usb": [
+      "ecm",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+SER?",
+      "modes": {
+        "ecm": "AT+SER=2,1",
+        "ncm": "AT+SER=2,1",
+        "rndis": "AT+SER=3,1"
+      }
+    }
+  },
+  {
+    "vendor": "meig",
+    "model": "srm825",
+    "platform": "qualcomm",
+    "usb": [
+      "ecm",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+SER?",
+      "modes": {
+        "ecm": "AT+SER=2,1",
+        "ncm": "AT+SER=2,1",
+        "rndis": "AT+SER=3,1"
+      }
+    }
+  },
+  {
+    "vendor": "meig",
+    "model": "srm825n",
+    "platform": "qualcomm",
+    "usb": [
+      "ecm",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+SER?",
+      "modes": {
+        "ecm": "AT+SER=2,1",
+        "ncm": "AT+SER=2,1",
+        "rndis": "AT+SER=3,1"
+      }
+    }
+  },
+  {
+    "vendor": "meig",
+    "model": "srm821",
+    "platform": "unisoc",
+    "usb": [
+      "ecm",
+      "rndis",
+      "ncm"
+    ],
+    "usb_at": {
+      "query": "AT+SER?",
+      "modes": {
+        "ecm": "AT+SER=2,1",
+        "ncm": "AT+SER=1,1",
+        "rndis": "AT+SER=3,1"
+      }
+    }
+  },
+  {
+    "vendor": "sierra",
+    "model": "em9190",
+    "platform": "qualcomm",
+    "usb": [
+      "mbim",
+      "rmnet"
+    ],
+    "pcie": [
+      "mbim",
+      "rmnet"
+    ],
+    "usb_at": {
+      "query": "AT!USBCOMP?",
+      "modes": {
+        "mbim": "AT!USBCOMP=1,4,0x00001009",
+        "rmnet": "AT!USBCOMP=1,4,0x00000109"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供该厂商的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "sierra",
+    "model": "em9291",
+    "platform": "qualcomm",
+    "usb": [
+      "mbim",
+      "rmnet"
+    ],
+    "pcie": [
+      "mbim",
+      "rmnet"
+    ],
+    "usb_at": {
+      "query": "AT!USBCOMP?",
+      "modes": {
+        "mbim": "AT!USBCOMP=1,4,0x00001009",
+        "rmnet": "AT!USBCOMP=1,4,0x00000109"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供该厂商的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "sierra",
+    "model": "mc7354",
+    "platform": "lte",
+    "usb": [
+      "qmi"
+    ],
+    "usb_at": {
+      "query": "AT!USBCOMP?",
+      "note": "Modem-Pro 只给了 mbim/rmnet 的参数，该型号 usb 列表用不到 ⇒ 只给查询指令"
+    }
+  },
+  {
+    "vendor": "sierra",
+    "model": "mc7355",
+    "platform": "lte",
+    "usb": [
+      "qmi"
+    ],
+    "usb_at": {
+      "query": "AT!USBCOMP?",
+      "note": "Modem-Pro 只给了 mbim/rmnet 的参数，该型号 usb 列表用不到 ⇒ 只给查询指令"
+    }
+  },
+  {
+    "vendor": "telit",
+    "model": "fn990a40",
+    "platform": "qualcomm",
+    "usb": [
+      "mbim",
+      "rndis",
+      "qmi",
+      "ecm"
+    ],
+    "pcie": [
+      "mbim",
+      "qmi"
+    ],
+    "usb_at": {
+      "query": "AT#USBCFG?",
+      "modes": {
+        "ecm": "AT#USBCFG=3",
+        "mbim": "AT#USBCFG=2",
+        "qmi": "AT#USBCFG=1",
+        "rndis": "AT#USBCFG=0"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供该厂商的 PCIe 形态切换指令"
+    }
+  },
+  {
+    "vendor": "simcom",
+    "model": "simcom_a8200_serias",
+    "platform": "asrmicro",
+    "usb": [
+      "ecm",
+      "rndis"
+    ],
+    "usb_at": {
+      "note": "Modem-Pro 的 set_mode() 没有 asrmicro 分支 ⇒ 参数未取证，不下发"
+    }
+  },
+  {
+    "vendor": "simcom",
+    "model": "a8200c-m2",
+    "platform": "asrmicro",
+    "usb": [
+      "ecm",
+      "rndis"
+    ],
+    "usb_at": {
+      "note": "Modem-Pro 的 set_mode() 没有 asrmicro 分支 ⇒ 参数未取证，不下发"
+    }
+  },
+  {
+    "vendor": "simcom",
+    "model": "a7605c",
+    "platform": "lte",
+    "usb": [
+      "ecm",
+      "rndis",
+      "auto"
+    ],
+    "usb_at": {
+      "query": "AT$MYCONFIG?",
+      "modes": {
+        "auto": "AT$MYCONFIG=\"USBNETMODE\",2,1",
+        "ecm": "AT$MYCONFIG=\"USBNETMODE\",1,1",
+        "rndis": "AT$MYCONFIG=\"USBNETMODE\",0,1"
+      }
+    }
+  },
+  {
+    "vendor": "simcom",
+    "model": "simcom_d8200g",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+CUSBCFG?",
+      "modes": {
+        "qmi": "AT+CUSBCFG=usbid,1e0e,9001",
+        "rndis": "AT+CUSBCFG=usbid,1e0e,9011"
+      },
+      "note": "Modem-Pro 用 USBID 切换：qmi=0x9001、rndis=0x9011"
+    }
+  },
+  {
+    "vendor": "simcom",
+    "model": "simcom_sim8200ea-m2",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "rndis"
+    ],
+    "usb_at": {
+      "query": "AT+CUSBCFG?",
+      "modes": {
+        "qmi": "AT+CUSBCFG=usbid,1e0e,9001",
+        "rndis": "AT+CUSBCFG=usbid,1e0e,9011"
+      },
+      "note": "Modem-Pro 用 USBID 切换：qmi=0x9001、rndis=0x9011"
+    }
+  },
+  {
+    "vendor": "simcom",
+    "model": "simcom_sim8202g-m2",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "rndis",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+CUSBCFG?",
+      "modes": {
+        "qmi": "AT+CUSBCFG=usbid,1e0e,9001",
+        "rndis": "AT+CUSBCFG=usbid,1e0e,9011"
+      },
+      "note": "Modem-Pro 用 USBID 切换：qmi=0x9001、rndis=0x9011"
+    }
+  },
+  {
+    "vendor": "simcom",
+    "model": "simcom_sim8380g-m2",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "rndis"
+    ],
+    "pcie": [
+      "qmi"
+    ],
+    "usb_at": {
+      "query": "AT+CUSBCFG?",
+      "modes": {
+        "qmi": "AT+CUSBCFG=usbid,1e0e,9001",
+        "rndis": "AT+CUSBCFG=usbid,1e0e,9011"
+      },
+      "note": "Modem-Pro 用 USBID 切换：qmi=0x9001、rndis=0x9011"
+    },
+    "pcie_at": {
+      "query": "AT+CPCIEMODE?",
+      "note": "Modem-Pro 只用它判断当前是否 PCIe 形态（EP）；切换不支持"
+    }
+  },
+  {
+    "vendor": "foxconn",
+    "model": "t77w968",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT^USBSWITCH?",
+      "modes": {
+        "mbim": "AT^USBSWITCH=90d5"
+      }
+    }
+  },
+  {
+    "vendor": "foxconn",
+    "model": "t99w175",
+    "platform": "qualcomm",
+    "usb": [
+      "mbim",
+      "rmnet"
+    ],
+    "pcie": [
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT^USBSWITCH?",
+      "modes": {
+        "mbim": "AT^USBSWITCH=90d5",
+        "rmnet": "AT^USBSWITCH=9025"
+      }
+    },
+    "pcie_at": {
+      "query": "AT^PCIEMODE?",
+      "note": "Modem-Pro 只用它判断\"当前是否 PCIe 形态\"；切换不支持（会 disable 模式按钮）"
+    }
+  },
+  {
+    "vendor": "foxconn",
+    "model": "t99w373",
+    "platform": "qualcomm",
+    "usb": [
+      "mbim",
+      "rmnet"
+    ],
+    "pcie": [
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT^USBSWITCH?",
+      "modes": {
+        "mbim": "AT^USBSWITCH=90d5",
+        "rmnet": "AT^USBSWITCH=9025"
+      }
+    },
+    "pcie_at": {
+      "query": "AT^PCIEMODE?",
+      "note": "Modem-Pro 只用它判断\"当前是否 PCIe 形态\"；切换不支持（会 disable 模式按钮）"
+    }
+  },
+  {
+    "vendor": "foxconn",
+    "model": "t99w368",
+    "platform": "qualcomm",
+    "usb": [
+      "mbim",
+      "rmnet"
+    ],
+    "pcie": [
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+USBSWITCH?",
+      "modes": {
+        "mbim": "AT+USBSWITCH=90d5",
+        "rmnet": "AT+USBSWITCH=9025"
+      }
+    },
+    "pcie_at": {
+      "query": "AT+PCIEMODE?",
+      "note": "Modem-Pro 只用它判断\"当前是否 PCIe 形态\"；切换不支持（会 disable 模式按钮）"
+    }
+  },
+  {
+    "vendor": "foxconn",
+    "model": "t99w640",
+    "platform": "qualcomm",
+    "pcie": [
+      "mbim"
+    ],
+    "pcie_at": {
+      "query": "AT+PCIEMODE?",
+      "note": "Modem-Pro 只用它判断\"当前是否 PCIe 形态\"；切换不支持（会 disable 模式按钮）"
+    }
+  },
+  {
+    "vendor": "thales",
+    "model": "mv32-w-a",
+    "platform": "qualcomm",
+    "usb": [
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+SETCONFIG?",
+      "modes": {
+        "mbim": "AT+SETCONFIG=0"
+      }
+    }
+  },
+  {
+    "vendor": "thales",
+    "model": "mv32-w-b",
+    "platform": "qualcomm",
+    "usb": [
+      "mbim",
+      "rmnet"
+    ],
+    "usb_at": {
+      "query": "AT+SETCONFIG?",
+      "modes": {
+        "mbim": "AT+SETCONFIG=0",
+        "rmnet": "AT+SETCONFIG=1"
+      }
+    }
+  },
+  {
+    "vendor": "neoway",
+    "model": "n510m",
+    "platform": "unisoc",
+    "usb": [
+      "ecm"
+    ],
+    "usb_at": {
+      "note": "Modem-Pro 没有提供 USB 拨号模式切换指令（该型号是固定 ECM 形态）"
+    }
+  },
+  {
+    "vendor": "gosuncn",
+    "model": "me3630-w",
+    "platform": "lte",
+    "usb": [
+      "ecm"
+    ],
+    "usb_at": {
+      "query": "AT+ZSWITCH?",
+      "modes": {
+        "ecm": "AT+ZSWITCH=l"
+      }
+    }
+  },
+  {
+    "vendor": "gosuncn",
+    "model": "gm800",
+    "platform": "qualcomm",
+    "usb": [
+      "qmi",
+      "ecm",
+      "mbim",
+      "rndis"
+    ],
+    "pcie": [
+      "mbim"
+    ],
+    "usb_at": {
+      "query": "AT+ZSWITCH?",
+      "modes": {
+        "ecm": "AT+ZSWITCH=e",
+        "mbim": "AT+ZSWITCH=8",
+        "qmi": "AT+ZSWITCH=x",
+        "rndis": "AT+ZSWITCH=r"
+      }
+    },
+    "pcie_at": {
+      "note": "Modem-Pro 没有提供该厂商的 PCIe 形态切换指令"
+    }
+  }
+]

@@ -1,0 +1,45 @@
+/* 柔和浮起（soft）—— 纯外观皮肤
+   ⚠️ 只改视觉：大圆角 + 柔和投影 + 无边框 + 圆点标题。
+   布局与其它风格一致：section 仍 block、卡片单列、全宽（main:max-width:none）、
+   卡片内边距(16px 18px)与间距(14px)不变，切换风格时内容不位移。 */
+
+:root[data-layout="soft"] main { max-width: none; }
+
+:root[data-layout="soft"] .card {
+  padding: 16px 18px;
+  margin-top: 14px;
+  /* 保留 1px 边框（透明）而不是 border:0：盒子尺寸不变，不会引起 1px 抖动 */
+  border: 1px solid transparent;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--shadow-md);
+}
+
+/* 卡头：竖条改成品牌色圆点（柔和风格的标志） */
+:root[data-layout="soft"] .card h3::before {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--brand-2), var(--brand));
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+/* 控件更圆润 */
+:root[data-layout="soft"] button.act,
+:root[data-layout="soft"] input,
+:root[data-layout="soft"] select,
+:root[data-layout="soft"] textarea { border-radius: 11px; }
+:root[data-layout="soft"] .tabs button { border-radius: 999px; }
+:root[data-layout="soft"] .tabs button.on { border-color: transparent; box-shadow: var(--shadow-sm); }
+
+:root[data-layout="soft"] .tile {
+  border-color: transparent;
+  border-radius: 14px;
+  box-shadow: var(--shadow-xs);
+}
+:root[data-layout="soft"] .subtabs { border-radius: 14px; }
+:root[data-layout="soft"] .subtabs button { border-radius: 10px; }
+:root[data-layout="soft"] .pill { border-color: transparent; background: var(--brand-soft); color: var(--brand); }
+:root[data-layout="soft"] pre { border-radius: 14px; }
+:root[data-layout="soft"] code { border-radius: 7px; }
+:root[data-layout="soft"] .bar { height: 8px; }

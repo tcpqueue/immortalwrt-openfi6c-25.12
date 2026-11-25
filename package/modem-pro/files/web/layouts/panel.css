@@ -1,0 +1,60 @@
+/* 经典面板（panel）—— 纯外观皮肤
+   ⚠️ 只改视觉：浅色标题条 + 直角/小圆角 + 细边框，像传统设备管理面板。
+   布局与其它风格一致：section 仍 block、卡片单列、全宽（main:max-width:none）、
+   卡片内边距(16px 18px)与间距(14px)不变（标题条用等量负外边距铺满，
+   所以内容位置和标准卡片对齐），切换风格时内容不位移。 */
+
+:root[data-layout="panel"] main { max-width: none; }
+
+:root[data-layout="panel"] .card {
+  padding: 16px 18px;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow-xs);
+}
+
+/* 卡头 = 浅色标题条（负外边距铺满卡片上沿，视觉上像"面板标题栏"） */
+:root[data-layout="panel"] .card-hd,
+:root[data-layout="panel"] .card > h3 {
+  margin: -16px -18px 12px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 8px 8px 0 0;
+  background: var(--card-2);
+}
+:root[data-layout="panel"] .card-hd { margin-bottom: 12px; }
+:root[data-layout="panel"] .card h3::before {
+  width: 4px;
+  height: 13px;
+  border-radius: 1px;
+}
+:root[data-layout="panel"] .card > h3 { font-size: 13.5px; }
+
+/* 控件方一点，符合"面板"气质 */
+:root[data-layout="panel"] button.act,
+:root[data-layout="panel"] input,
+:root[data-layout="panel"] select,
+:root[data-layout="panel"] textarea { border-radius: 4px; }
+:root[data-layout="panel"] .tabs button { border-radius: 4px; }
+:root[data-layout="panel"] .tabs button.on {
+  border-color: var(--line);
+  border-bottom-color: transparent;
+  border-radius: 6px 6px 0 0;
+}
+
+/* 数据区：实线分隔、方角，表头略深 */
+:root[data-layout="panel"] .tile {
+  border-radius: 4px;
+  background: var(--card);
+  border-color: var(--line);
+}
+:root[data-layout="panel"] th {
+  background: var(--track);
+  border-bottom: 1px solid var(--line);
+}
+:root[data-layout="panel"] .pill { border-radius: 3px; }
+:root[data-layout="panel"] code { border-radius: 3px; background: var(--card-2); }
+:root[data-layout="panel"] .subtabs { border-radius: 6px; }
+:root[data-layout="panel"] .subtabs button { border-radius: 4px; }

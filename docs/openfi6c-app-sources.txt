@@ -1,10 +1,10 @@
-package/passwall2: https://github.com/Openwrt-Passwall/openwrt-passwall2.git @ e3788855d3cb3ddc3f4027ea2480d7c19019f033
-package/passwall-packages: https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git @ 3ab13856aadb93642325a504b94ab9796fe55ee1
-package/passwall: https://github.com/Openwrt-Passwall/openwrt-passwall.git @ 00202bb00d3781d33ad29057e4e833a833d476dc
+package/passwall2: https://github.com/Openwrt-Passwall/openwrt-passwall2.git @ ccae1fd66e0b6528150d80fe6834b20ed2030db6
+package/passwall-packages: https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git @ 65ae3f5ec70c9613ae3ec41ee6e9baecb1828ff9
+package/passwall: https://github.com/Openwrt-Passwall/openwrt-passwall.git @ 89ecdea8a44593c8055811c637b0c1a94d88453f
 package/qfirehose: https://github.com/FUjr/QModem.git (application/qfirehose) @ 73d18392db358fb4a0da6ace1af0d07978bae324
 package/tailscale-community: https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community.git @ d9a3954213a09e428643db84cce4a2a232727f13
 package/openlist: https://github.com/OpenListTeam/OpenList-OpenWRT.git @ 4bf72661c700d7209e78228f3d3c618443d5b9df
-package/luci-theme-aurora: https://github.com/eamonxg/luci-theme-aurora.git @ 84c27b66952e6fc4be60128067a6b88bfd34afb5
+package/luci-theme-aurora: https://github.com/eamonxg/luci-theme-aurora.git @ 298dbcc74ddf820923a51285fb0826d429e5d7ca
 package/user-apps/luci-app-diskman: feeds/luci/applications/luci-app-diskman @ d6167ea0645cbd1327708d85f94824f42d0eb872
 package/user-apps/luci-app-samba4: feeds/luci/applications/luci-app-samba4 @ d6167ea0645cbd1327708d85f94824f42d0eb872
 package/user-apps/luci-app-timewol: feeds/luci/applications/luci-app-timewol @ d6167ea0645cbd1327708d85f94824f42d0eb872
@@ -40,3 +40,7 @@ Common multi-version build helpers are copied unchanged. Only the 1.27 compiler 
 Source: https://go.dev/dl/go1.27.2.src.tar.gz
 SHA256: 03495da2ba64894d40f5c4992e49454fa78b50690604ff92b6afff5081b76e62
 Xray 26.10.17 and OpenList 4.2.6 explicitly use golang1.27/host.
+
+package/modem-pro: https://github.com/tcpqueue/modem-pro.git @ 9866ff4bc14be4d359899194b700c6a6d8fcab20
+OpenFi 6C installs the modemd-pro daemon with the embedded UI. OpenFi package release 27 enables modemd auto WAN with the standard split DHCP/DHCPv6 mode. The old board USB WAN service has been retired.
+OpenFi package release 28 defaults to HTTP with LuCI session authentication. Optional HTTPS uses an existing key pair or generates a persistent self-signed certificate.

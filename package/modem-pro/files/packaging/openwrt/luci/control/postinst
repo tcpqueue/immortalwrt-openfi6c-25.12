@@ -1,0 +1,194 @@
+#!/bin/sh
+# luci-app-modemd-pro 安装后：清掉 LuCI 的两处缓存，省得"菜单不出现/页面报错"
+[ -n "$IPKG_INSTROOT" ] && exit 0
+
+# ⚠️ /tmp/luci-modulecache 是**目录**（LuCI 的 ccache 按模块名缓存编译后的字节码，
+#    **不校验源文件时间**）—— 只装不改源文件还好，一升级就会继续跑旧的编译结果
+#    （真机踩到：控制器里 require 出来的表变成 nil，页面 500）。所以必须 rm -rf。
+# ⚠️ ucode LuCI 的菜单缓存是**按会话**的 `/tmp/luci-indexcache.<sid>.json`
+#    （只删 luci-indexcache / luci-indexcache.json 会漏掉它 ⇒ 升级后菜单还是旧的）⇒ 必须打统配。
+rm -f  /tmp/luci-indexcache*
+rm -rf /tmp/luci-modulecache
+
+# 让 rpcd 重新加载 ACL（新的菜单权限才会生效）。
+# ⚠️⚠️ 但 rpcd 一重启就会把**所有已登录会话都踢掉**：用户的浏览器还留着旧 cookie、
+#    LuCI 又不能干净地翻回登录页 → 表现就是"后台连菜单都不显示"（2026-10-01 真机踩到，
+#    用户报障）。所以只在 ACL 文件**真的变了**时才动它，平时升级一点也不碰。
+__acl=/usr/share/rpcd/acl.d/luci-app-modemd.json
+__aclnew=$(md5sum "$__acl" 2>/dev/null | cut -d' ' -f1)
+if [ -n "$__aclnew" ]; then
+	if [ "$__aclnew" != "$(cat /etc/modemd/.acl_md5 2>/dev/null)" ]; then
+		/etc/init.d/rpcd reload >/dev/null 2>&1 || /etc/init.d/rpcd restart >/dev/null 2>&1
+		mkdir -p /etc/modemd 2>/dev/null
+		echo "$__aclnew" > /etc/modemd/.acl_md5 2>/dev/null
+		__acl_note="ACL 变了：已重载 rpcd（本次会要求重新登录一次）"
+	else
+		__acl_note="ACL 未变：没动 rpcd（会话不受影响）"
+	fi
+fi
+
+# --------------------------------------------------- Lua / JS 双栈的选择 ----
+# 包里同时带两套实现：
+#   · Lua LuCI（老固件，如 QWRT/H28K）：controller/modemd.lua + view/modemd/*.htm
+#   · JS  LuCI（OpenWrt 23.05+/24.10）：share/luci/menu.d/*.json + www/luci-static/resources/view/modemd/*.js
+#
+# ⚠️⚠️ 但 ucode 版 LuCI 带了 **Lua 兼容桥**（ucodebridge.lua + luci-compat），它会
+# **优先渲染 view/modemd/*.htm**。而这时 Lua 控制器并没有被 dispatcher 加载
+# ⇒ 模板里依赖控制器注册的全局全是 nil ⇒ 页面直接 500：
+#     Failed to execute template 'modemd/overview'
+#     [view/modemd/overview.htm]:1: attempt to call global 'modemdUIURL' (a nil value)
+#   （真机实测，OpenWrt 24.10 / H29K）
+# 所以：检测到 ucode 版 LuCI + Lua 兼容桥时，**把 Lua 那套删掉**，只留 JS 视图。
+# 反过来，Lua 版固件没有 /usr/share/ucode/luci，不受影响。
+__has_ucode=""
+[ -d /usr/share/ucode/luci ] && __has_ucode=1
+[ -f /usr/lib/lua/luci/ucodebridge.lua ] && __has_ucode=1
+if [ -n "$__has_ucode" ]; then
+	rm -f /usr/lib/lua/luci/view/modemd/overview.htm \
+	      /usr/lib/lua/luci/view/modemd/service.htm \
+	      /usr/lib/lua/luci/controller/modemd.lua \
+	      /usr/lib/lua/luci/modemd_i18n.lua
+	rmdir /usr/lib/lua/luci/view/modemd 2>/dev/null
+	rm -f /tmp/luci-indexcache*
+	rm -rf /tmp/luci-modulecache
+	__ui_note="ucode 版 LuCI：已移除 Lua 视图（它会被兼容桥优先渲染并报 modemdUIURL nil），只用 JS 视图"
+else
+	__ui_note="Lua 版 LuCI：使用 Lua 控制器 + 视图"
+fi
+
+# ------------------------------------------------------------ 菜单语言 ----
+# 这台固件的 LuCI 是 ucode+JS 版：菜单标题来自 /usr/share/luci/menu.d/*.json，
+# 而 JS 侧 **没有** i18n 函数，服务端翻译只认 /usr/lib/lua/luci/i18n/*.lmo
+# （哈希+二进制格式，必须用 po2lmo 生成 ⇒ 我们只能按语言改写 JSON 标题）。
+# 幂等：包升级会把 JSON 覆盖回英文，这里再改写一次；en 等其它语言保持英文。
+__mj=/usr/share/luci/menu.d/luci-app-modemd.json
+__lang=$(uci -q get luci.main.lang 2>/dev/null)
+[ -z "$__lang" ] && __lang=auto
+# ⚠️⚠️ luci.main.lang 的写法**两种都有**：OpenWrt 25.12 实测是 `zh_cn`（下划线），
+#    老固件/手工配置常见 `zh-cn`（连字符）。2026-10-05 真机踩到：只匹配连字符时
+#    `zh_cn` 落不进任何分支 ⇒ 菜单标题一直英文（用户报"汉化没有了"）。
+#    ⇒ 先统一小写 + 把 `_` 换成 `-` 再匹配（Lua 侧的 modemd_i18n.lua 早就这么做了）。
+__lang_norm=$(printf '%s' "$__lang" | tr 'A-Z_' 'a-z-')
+__lang_note="菜单标题保持英文（luci.main.lang=$__lang）"
+if [ -f "$__mj" ]; then
+	case "$__lang_norm" in
+	zh-tw|zh-hant|zh-hk)
+		# ⚠️ 打包时（modem-pro 的 Makefile，MODEM_PRO_LUCI_LANG）已经把标题写成简体，
+        #    所以「英文原标题」和「已是简体的标题」两种都要处理：
+        sed -i -e 's/"5G Terminal"/"5G終端"/g' -e 's/"Device Center"/"設備中心"/g' -e 's/"Service Control"/"服務控制"/g' \
+               -e 's/"5G终端"/"5G終端"/g' -e 's/"设备中心"/"設備中心"/g' -e 's/"服务控制"/"服務控制"/g' "$__mj"
+		__lang_note="菜单标题已改为繁体中文"
+		;;
+	zh-cn|zh-hans|zh|auto|"")
+		sed -i 's/"5G Terminal"/"5G终端"/g; s/"Device Center"/"设备中心"/g; s/"Service Control"/"服务控制"/g' "$__mj"
+		__lang_note="菜单标题已改为简体中文"
+		;;
+	esac
+fi
+
+# ------------------------------------------------------------ 菜单图标 ----
+# ⚠️⚠️ 0.1.50-1 起 **不再往主题样式表/主题模板/luci.js 里写任何东西**。
+# 原因（2026-10-01 真实事故）：旧版会把菜单图标的 CSS 追加到主题样式表、把悬浮件加载器插进
+# `/usr/lib/lua/luci/view/themes/<theme>/header.htm`。某次安装后那个模板被**截断**（7343→5425 字节），
+# 恰好丢掉了 `<div class="main-left" id="mainmenu">` 那一段 ⇒ 主题的 menu-argon.js 报
+# `Cannot read properties of null (reading 'appendChild')` ⇒ **整个后台一个菜单都不显示**。
+# 教训：别人的文件（尤其是主题模板 / 核心 JS）宁可不碰。图标与悬浮件只在
+# 「5G终端」自己的 JS 视图里做（那是我们的文件）。
+__icon_note="不改写主题样式表（图标只在「5G终端」页面里）"
+
+# ---------------------------------------------------- 悬浮小窗（所有页面）----
+# 需求：**所有 LuCI 页面、所有已安装主题**都显示一个悬浮小窗（点开就是设备中心，实时数据在里面；端口见 config.toml）。
+#
+# ⚠️⚠️ 注入到“别人的文件”里必须守规矩（2026-10-01 踩过大坑：旧版用 `sed -i` 改主题模板，
+#    一次安装把它写成了截断的文件、丢掉 `#mainmenu` 容器 ⇒ 整个后台菜单全没了）：
+#   1. 每个主题模板第一次注入前，把原版**整份备份**到 `/etc/modemd/luci-theme-header.orig_*`（永不覆盖）；
+#   2. 之后每次安装都用「备份 + 我们那一行」**重新拼出完整内容**（在 /tmp 里拼好再 `mv` ——
+#      `mv` 是原子改名，中途被打断也不会留下残缺的正式文件）；
+#   3. 拼完自检（必须能 grep 到带当前版本的标记）；不通过就整份还原备份，宁可不注入；
+#   4. 这样天然幂等：不会重复追加、也不会累积多余空行（内容完全确定）；
+#   5. 卸载由 postrm 摘掉那一行（`grep -v` → 临时文件 → `mv`，同样不截断原文件）。
+__port=9527
+__p=$(sed -n 's/.*listen[[:space:]]*=[[:space:]]*"[^"]*:\([0-9][0-9]*\)".*/\1/p' /etc/modemd/config.toml 2>/dev/null | head -1)
+case "$__p" in ''|*[!0-9]*) ;; *) __port="$__p" ;; esac
+# 注入 URL 里的版本号（?v=）就是**浏览器缓存失效的开关**：版本变了 URL 就变，
+# 浏览器才会重新取 widget.js。⚠️ 运行期去猜版本很容易取空/取错（实测 192.168.77.1：
+# opkg 的 control 文件在 apk 系统上根本不存在；退回 apk 数据库还会拿到上一版的号）
+# ⇒ 改成**打包时写死**（原 Windows 打包脚本（已删） 把 __PKGVER__ 换成真版本），下面只留兜底。
+__ver="__PKGVER__"
+case "$__ver" in *__PKGVER__*) __ver="" ;; esac
+[ -z "$__ver" ] && __ver=$(sed -n 's/^Version: *//p' /usr/lib/opkg/info/luci-app-modemd-pro.control 2>/dev/null | head -1)
+# 没被打包脚本替换过时的兜底：OpenWrt 25.12+ 是 apk、没有 opkg 的 control 文件，
+# 版本在 apk 数据库里（P: 包名 / V: 版本）。
+if [ -z "$__ver" ] && [ -r /lib/apk/db/installed ]; then
+	__ver=$(awk -F: '$1=="P" && $2=="luci-app-modemd-pro" {f=1; next} f && $1=="V" {print $2; exit} f && NF==0 {f=0}' /lib/apk/db/installed 2>/dev/null | head -1)
+fi
+[ -z "$__ver" ] && __ver="dev"
+__wblk="<!-- modemd-pro-widget:begin --><script data-modemd-widget=\"1\" data-port=\"$__port\" data-tag=\"$__ver\">window.__modemdWidgetCfg={port:\"$__port\",tag:\"$__ver\"};(function(){var d=document,s=d.createElement('script');s.src='/luci-static/resources/modemd/widget.js?v=$__ver&t='+Date.now();(d.head||d.getElementsByTagName('head')[0]||d.documentElement).appendChild(s);})();</script><!-- modemd-pro-widget:end -->"
+# ⚠️ 注入的是一段**加载器**，不是直接的 `<script src=...>`：
+#   · `?t=<时间戳>` 让每次页面加载都重新取 widget.js —— **不再依赖“版本号变了 URL 才变”
+#     这套缓存失效**（实测 2026-10-06：apk 系统上安装脚本拿到的版本号总是滞后一版
+#     ⇒ URL 没变 ⇒ 浏览器一直用旧 widget.js ⇒ 新功能“看不到”）。
+#   · 端口/版本走 `window.__modemdWidgetCfg` 传给 widget.js：
+#     动态插入的 <script> 上不一定还能读到注入时写的 data-* 属性。
+#   · `?v=` 保留只为在浏览器 Network 里一眼看出加载的是哪一版。
+
+__widget_templates=0
+__widget_ready=0
+mkdir -p /etc/modemd 2>/dev/null
+for __root in \
+	/usr/lib/lua/luci/view/themes \
+	/usr/share/ucode/luci/template/themes \
+	/usr/share/luci/template/themes ; do
+	[ -d "$__root" ] || continue
+	for __dir in "$__root"/*; do
+		[ -d "$__dir" ] || continue
+		for __hdr in "$__dir/header.htm" "$__dir/header.ut"; do
+			[ -f "$__hdr" ] && [ -w "$__hdr" ] || continue
+			__widget_templates=$((__widget_templates + 1))
+			__bak=/etc/modemd/luci-theme-header.orig$(printf '%s' "$__hdr" | sed 's|/|_|g')
+			if ! grep -q 'modemd-pro-widget' "$__hdr" 2>/dev/null && [ ! -f "$__bak" ]; then
+				cp -f "$__hdr" "$__bak" 2>/dev/null
+			fi
+			if [ -f "$__bak" ] && [ "$(wc -c < "$__bak" 2>/dev/null || echo 0)" -gt 1000 ]; then
+				# 从每个模板自己的备份重建，避免重复注入或留下半截模板。
+				__tmp=/tmp/modemd-hdr.$$
+				if { cat "$__bak"; [ "$(tail -c 1 "$__bak" 2>/dev/null | wc -l)" = "0" ] && printf '\n'; printf '%s\n' "$__wblk"; } > "$__tmp" 2>/dev/null && \
+				   grep -q "data-tag=\"$__ver\"" "$__tmp" 2>/dev/null && mv -f "$__tmp" "$__hdr" 2>/dev/null; then
+					__widget_ready=$((__widget_ready + 1))
+				else
+					cp -f "$__bak" "$__hdr" 2>/dev/null
+				fi
+				rm -f "$__tmp" 2>/dev/null
+			elif grep -q 'modemd-pro-widget' "$__hdr" 2>/dev/null; then
+				# 已有旧版注入但没有对应备份：保留现状，避免重复追加。
+				__widget_ready=$((__widget_ready + 1))
+			else
+				# 备份不可用时退化为只追加，不重写主题原文件。
+				printf '\n%s\n' "$__wblk" >> "$__hdr" 2>/dev/null && __widget_ready=$((__widget_ready + 1))
+			fi
+		done
+	done
+done
+
+if [ "$__widget_templates" -gt 0 ]; then
+	__widget_note="已处理 $__widget_ready / $__widget_templates 个 LuCI 主题模板"
+else
+	__widget_note="没找到可写的 LuCI 主题模板（「5G终端」页里的开关仍可用）"
+fi
+echo "luci-app-modemd-pro 已安装："
+echo "  菜单位置： 一级菜单「modemd 5G Modem」（概览 / 服务控制）"
+echo "  概览：     整屏内嵌「设备中心」（:8080），保留左侧菜单"
+echo "  服务控制： 启动 / 停止 / 重启 / 开机自启"
+echo "  多语言：   页面自带中/英表（按 luci.main.lang 或浏览器语言）；$__lang_note"
+echo "  两代 LuCI 都支持：Lua LuCI 用 /usr/lib/lua/luci/controller/modemd.lua，"
+echo "                   JS  LuCI 用 /usr/share/luci/menu.d/luci-app-modemd.json"
+echo "  UI 类型：  $__ui_note"
+echo "  没看到菜单：刷新浏览器（Ctrl+F5）或退出 LuCI 重新登录一次"
+echo "  前提：      需先安装 modemd 本体（opkg install modemd-pro_*.ipk）并启动服务"
+echo ""
+echo "  作者：      马上有房   QQ: 168620188   邮箱: 168620188@qq.com"
+echo "  菜单图标：  $__icon_note"
+echo "  悬浮组件：  $__widget_note"
+[ -n "$__acl_note" ] && echo "  ACL/rpcd：  $__acl_note"
+echo "  改名说明：  本包原名 luci-app-modemd（2026-10-01 改名）；守护进程包原名 modemd（2026-10-02 改名为 modemd-pro）"
+exit 0

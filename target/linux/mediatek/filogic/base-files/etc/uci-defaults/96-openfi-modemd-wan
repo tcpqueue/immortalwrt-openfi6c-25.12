@@ -1,0 +1,30 @@
+#!/bin/sh
+case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+    openfi,6c|openfi,6c1) ;;
+    *) exit 0 ;;
+esac
+
+# Keep a manually configured uplink and honor an explicit modemd opt-out.
+[ "$(uci -q get network.wan.openfi_usb_auto)" = 1 ] || exit 0
+[ "$(uci -q get network.wan.proto)" = dhcp ] || exit 0
+managed="$(uci -q get network.wan.openfi_usb_device)"
+[ -n "$managed" ] && [ "$(uci -q get network.wan.device)" = "$managed" ] || exit 0
+
+config=/etc/modemd/config.toml
+[ -r "$config" ] || exit 0
+auto_wan=$(awk '
+    /^[[:space:]]*\[/ { net = /^[[:space:]]*\[[[:space:]]*net[[:space:]]*\]/ }
+    net && /^[[:space:]]*auto_wan[[:space:]]*=[[:space:]]*false([[:space:]]|#|$)/ {
+        print "false"
+        exit
+    }
+' "$config")
+[ "$auto_wan" != false ] || exit 0
+
+uci set network.wan.auto=0 || exit 1
+if [ "$(uci -q get network.wan6.device)" = @wan ] &&
+   [ "$(uci -q get network.wan6.proto)" = dhcpv6 ]; then
+    uci set network.wan6.auto=0 || exit 1
+fi
+uci set network.wan.openfi_usb_auto=0 || exit 1
+uci commit network

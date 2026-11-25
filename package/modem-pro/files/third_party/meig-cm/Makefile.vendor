@@ -1,0 +1,43 @@
+# ⚠️ 这个文件名故意不带 'Makefile' 后缀（原文件名就是 Makefile，厂商自带的独立 OpenWrt 包定义）。
+# 原因：lede 的包扫描是
+#     find package -maxdepth 5 -name Makefile | xargs grep 'call (BuildPackage|KernelPackage)'
+# 这个文件正好在深度内且命中 —— 留着就会让 menuconfig 多出一个独立的包
+# （meig-cm / fibocom-dial），而这两个拨号器现在由 modem-pro 内嵌编译，
+# 产物装到 /usr/lib/modemd/，不需要再单独出包。
+# 想单独出包时：cp Makefile.vendor Makefile，并放到 lede 树外去用。
+#
+# 以下为厂商原文件内容（未改动）：
+include $(TOPDIR)/rules.mk
+
+PKG_NAME:= meig-cm
+PKG_VERSION:=1.2.1
+PKG_RELEASE:=1
+
+include $(INCLUDE_DIR)/package.mk
+
+define Package/meig-cm
+  SECTION:=utils
+  CATEGORY:=Utilities
+  TITLE:=meig-cm app
+endef
+
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+	$(CP) ./src/* $(PKG_BUILD_DIR)/
+endef
+
+define Build/Compile
+	$(MAKE) -C "$(PKG_BUILD_DIR)" \
+		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
+		CROSS_COMPILE="$(TARGET_CROSS)" \
+		ARCH="$(LINUX_KARCH)" \
+		M="$(PKG_BUILD_DIR)" \
+		CC="$(TARGET_CC)"
+endef
+
+define Package/meig-cm/install
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/meig-cm $(1)/usr/bin
+endef
+
+$(eval $(call BuildPackage,meig-cm))

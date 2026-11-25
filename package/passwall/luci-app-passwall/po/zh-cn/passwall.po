@@ -932,8 +932,8 @@ msgstr "从 Geo 文件生成规则"
 msgid "Generate rule lists such as GFW, China domains, and China IP ranges based on Geo files."
 msgstr "根据 Geo 文件生成规则列表，包括 GFW、中国域名和中国 IP 段等。"
 
-msgid "When manually updating with this option enabled, rules will be regenerated from existing Geo files even if no new version is available."
-msgstr "启用此选项后手动更新时,即使没有新版本也会从现有 Geo 文件重新生成规则。"
+msgid "GeoSite files without GFW rules cannot generate a GFW list (e.g. the original v2fly/Xray files)."
+msgstr "不含 GFW 规则的 GeoSite 文件无法生成 GFW 列表（如 v2fly/Xray 原版）。"
 
 msgid "Enable Geo Data Parsing"
 msgstr "开启 Geo 数据解析"
@@ -1181,19 +1181,19 @@ msgstr "不是有效 IPv6 格式，请重新输入！"
 msgid "Not true format, please re-enter!"
 msgstr "不是正确的格式，请重新输入！"
 
-msgid "Plaintext: If this string matches any part of the targeting domain, this rule takes effet. Example: rule 'sina.com' matches targeting domain 'sina.com', 'sina.com.cn' and 'www.sina.com', but not 'sina.cn'."
+msgid "Plaintext: If this string matches any part of the targeting domain, this rule takes effect. Example: rule 'sina.com' matches targeting domain 'sina.com', 'sina.com.cn' and 'www.sina.com', but not 'sina.cn'."
 msgstr "纯字符串: 当此字符串匹配目标域名中任意部分，该规则生效。比如'sina.com'可以匹配'sina.com'、'sina.com.cn'和'www.sina.com'，但不匹配'sina.cn'。"
 
-msgid "Regular expression: Begining with 'regexp:', the rest is a regular expression. When the regexp matches targeting domain, this rule takes effect. Example: rule 'regexp:\\.goo.*\\.com$' matches 'www.google.com' and 'fonts.googleapis.com', but not 'google.com'."
+msgid "Regular expression: Beginning with 'regexp:', the rest is a regular expression. When the regexp matches targeting domain, this rule takes effect. Example: rule 'regexp:\\.goo.*\\.com$' matches 'www.google.com' and 'fonts.googleapis.com', but not 'google.com'."
 msgstr "正则表达式: 由'regexp:'开始，余下部分是一个正则表达式。当此正则表达式匹配目标域名时，该规则生效。例如'regexp:\\.goo.*\\.com$'匹配'www.google.com'、'fonts.googleapis.com'，但不匹配'google.com'。"
 
-msgid "Subdomain (recommended): Begining with 'domain:' and the rest is a domain. When the targeting domain is exactly the value, or is a subdomain of the value, this rule takes effect. Example: rule 'domain:v2ray.com' matches 'www.v2ray.com', 'v2ray.com', but not 'xv2ray.com'."
+msgid "Subdomain (recommended): Beginning with 'domain:' and the rest is a domain. When the targeting domain is exactly the value, or is a subdomain of the value, this rule takes effect. Example: rule 'domain:v2ray.com' matches 'www.v2ray.com', 'v2ray.com', but not 'xv2ray.com'."
 msgstr "子域名 (推荐): 由'domain:'开始，余下部分是一个域名。当此域名是目标域名或其子域名时，该规则生效。例如'domain:v2ray.com'匹配'www.v2ray.com'、'v2ray.com'，但不匹配'xv2ray.com'。"
 
-msgid "Full domain: Begining with 'full:' and the rest is a domain. When the targeting domain is exactly the value, the rule takes effect. Example: rule 'domain:v2ray.com' matches 'v2ray.com', but not 'www.v2ray.com'."
+msgid "Full domain: Beginning with 'full:' and the rest is a domain. When the targeting domain is exactly the value, the rule takes effect. Example: rule 'full:v2ray.com' matches 'v2ray.com', but not 'www.v2ray.com'."
 msgstr "完整匹配: 由'full:'开始，余下部分是一个域名。当此域名完整匹配目标域名时，该规则生效。例如'full:v2ray.com'匹配'v2ray.com'但不匹配'www.v2ray.com'。"
 
-msgid "Pre-defined domain list: Begining with 'geosite:' and the rest is a name, such as geosite:google or geosite:cn."
+msgid "Pre-defined domain list: Beginning with 'geosite:' and the rest is a name, such as geosite:google or geosite:cn."
 msgstr "预定义域名列表：由'geosite:'开头，余下部分是一个名称，如geosite:google或者geosite:cn。"
 
 msgid "Sing-Box is compatible with Geo rules and rule-set. rule-set begin with 'rule-set:remote:' or 'rule-set:local:'."
@@ -1202,7 +1202,7 @@ msgstr "Sing-Box 可兼容 Geo 规则和规则集，规则集由 'rule-set:remot
 msgid "Such as:"
 msgstr "例如："
 
-msgid "Annotation: Begining with #"
+msgid "Annotation: Beginning with #"
 msgstr "注释: 由 # 开头"
 
 msgid "Invert match result."
@@ -1313,11 +1313,17 @@ msgstr "是否允许不安全连接。当勾选时，将跳过证书验证。"
 msgid "%s Node Use Type"
 msgstr "%s 节点使用类型"
 
+msgid "Other"
+msgstr "其他"
+
 msgid "UDP relay mode"
 msgstr "UDP 中继模式"
 
 msgid "Congestion control algorithm"
 msgstr "拥塞控制算法"
+
+msgid "Keep Alive"
+msgstr "保活间隔"
 
 msgid "Heartbeat interval(second)"
 msgstr "保活心跳包发送间隔（单位：秒）"
@@ -1504,6 +1510,9 @@ msgstr "请指定下载地址。"
 
 msgid "File download failed or timed out: %s"
 msgstr "文件下载失败或超时：%s"
+
+msgid "File verification failed."
+msgstr "文件校验失败"
 
 msgid "File path required."
 msgstr "请指定文件路径。"
@@ -1717,6 +1726,9 @@ msgstr "如果节点地址是域名，则将使用此 DNS 进行解析。"
 
 msgid "Note: For node-specific DNS only. Keep Auto to avoid extra overhead."
 msgstr "注意：仅用于节点专用 DNS，通常请保持自动，以免增加开销。"
+
+msgid "Note: Auto tries to extract node DNS from Clash subscriptions. Disable skips extraction."
+msgstr "注意：自动尝试提取 Clash 订阅中的节点 DNS，禁用则不提取。"
 
 msgid "Enable Happy Eyeballs"
 msgstr "启用 Happy Eyeballs"
@@ -2003,3 +2015,57 @@ msgstr "WARP 设备私钥"
 
 msgid "WARP Endpoint Public Key"
 msgstr "WARP 服务端公钥"
+
+msgid "Click to sort; click again to reverse. Press Save & Apply to keep the order."
+msgstr "点击表头排序，再次点击切换方向。按保存并应用可保留顺序。"
+
+msgid "Sort by type or protocol, then by name"
+msgstr "先按类型或协议排序，再按名称排序"
+
+msgid "Sort by server address and port"
+msgstr "按服务器地址和端口排序"
+
+msgid "Restore the saved order"
+msgstr "恢复已保存的顺序"
+
+msgid "The order changed on this page only. Press Save & Apply to store it on the router."
+msgstr "顺序仅在本页改变。按保存并应用才会写入路由器。"
+
+msgid "Saved order restored."
+msgstr "已恢复保存的顺序。"
+
+msgid "Automatic ping is still running (%d left). Sorting will run when it finishes."
+msgstr "自动探测仍在进行（剩余 %d）。结束后会立即排序。"
+
+msgid "Automatic ping did not finish within 2 minutes. Sorting was cancelled. Reload the page and try again."
+msgstr "自动探测在 2 分钟内未结束，已取消排序。请刷新页面后重试。"
+
+msgid "Filter:"
+msgstr "筛选："
+
+msgid "(empty)"
+msgstr "(空)"
+
+msgid "Word in remarks"
+msgstr "备注关键词"
+
+msgid "Address"
+msgstr "地址"
+
+msgid "search..."
+msgstr "搜索..."
+
+msgid "Show only rows that contain this text"
+msgstr "只显示包含此文本的行"
+
+msgid "Shown %s of %t"
+msgstr "显示 %s / %t"
+
+msgid "Reset"
+msgstr "重置"
+
+msgid "Show all rows"
+msgstr "显示全部行"
+
+msgid "The filter only hides rows on this page and changes nothing on the router. Select all skips hidden rows."
+msgstr "筛选只在本页隐藏行，不会改动路由器上的设置。全选会跳过隐藏行。"

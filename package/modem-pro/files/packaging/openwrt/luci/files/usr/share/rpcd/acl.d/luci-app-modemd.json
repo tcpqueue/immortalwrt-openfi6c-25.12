@@ -1,0 +1,24 @@
+{
+	"luci-app-modemd": {
+		"description": "Grant access to the modemd service page (status + start/stop/restart + enable/disable)",
+		"read": {
+			"file": {
+				"/etc/modemd/config.toml": [ "read" ]
+			},
+			"ubus": {
+				"luci": [ "getInitList" ],
+				"service": [ "list" ],
+				"file": [ "read" ]
+			}
+		},
+		"write": {
+			"file": {
+				"/etc/modemd/config.toml": [ "write" ]
+			},
+			"ubus": {
+				"luci": [ "setInitAction" ],
+				"file": [ "write" ]
+			}
+		}
+	}
+}

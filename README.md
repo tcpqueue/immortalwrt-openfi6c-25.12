@@ -39,10 +39,9 @@ OpenFi 管理插件 `2026.10.15-r1` 改用 LuCI JavaScript 视图，页面样式
 ### 无线与网络
 
 - **闭源 MT WiFi 7.6.7.3**，配套 `mt7981-fw-20260601` 和 LuCI 无线管理。
-- **实体网口作为 LAN**，USB 模块作为 DHCP WAN，WAN6 跟随 WAN。
-- USB WAN 根据真实设备路径和驱动识别，兼容模块接口名为 `usbX`、`ethX` 的情况。
+- **实体网口作为 LAN**。当前源码由 `modemd-pro` 自动识别 5G 模组并创建 `modem<N>`（DHCP）及按需创建 `modem<N>_6`（DHCPv6）。
 - **USB HNAT 硬件加速已实机验证**，支持单 MAC 拓扑下的内部回送，保留 WED 相关组件。
-- 手动调整 WAN 协议或设备后，自动识别逻辑保留用户设置。
+- 升级保留配置时，仅停用仍由旧 OpenFi 脚本管理的 USB WAN。
 
 ### 风扇与设备管理
 
@@ -113,6 +112,9 @@ e02a228bf4dd8ea2bf08670aef57f1f8d51d21ea2b02da1259b94ab68640e597  OpenFi6C-25.12
 </details>
 
 ## 编译固件
+
+当前源码已同步 MT798x `25.12` 上游至 [458d2f7](https://github.com/chasey-dev/immortalwrt-mt798x-rebase/commit/458d2f7e9295ee3709dc4f0d5ca5fabbd4cc1863)，内核更新至 Linux 6.12.116。上述 Release 记录对应此前发布的固件。
+
 
 建议使用 **Ubuntu 24.04 / WSL2**，16GB 内存并预留足够的 Linux 磁盘空间。WSL 下将项目放在 `~/projects/` 等 Linux 原生目录，`/mnt/...` 仅用于与 Windows 传输文件。
 

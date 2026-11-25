@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="color-scheme" content="dark light" />
+<title>modemd 小窗</title>
+<!--
+  5G终端悬浮小窗的**内容页**（单独一页，故意不加载设备中心那份大页面）。
+
+  为什么单独写：
+    · 悬浮小窗只需要「运营商 + 基本信号 + 短信未读角标」，把整份设备中心塞进去又慢又吵；
+    · 这一页跑在 modemd 自己的源上（设备中心端口），所以能直接吃 WebSocket 推送，
+      不需要给 modemd 加 CORS，也不需要跨域轮询；
+    · 数据来源全是**已有**的接口/推送：modems（条数/未读）、signal、network、smscount、sms。
+
+  与父窗口（LuCI 侧 widget.js，跑在 :80，跨源）通过 postMessage 交换**摘要**：
+  父窗口据此在标题条/收起后的小角标上显示 运营商 · RSRP · 未读数；
+  **新短信**也由这里转发出去，让父窗口在**任意 LuCI 页面**弹一张短信卡片。
+  消息格式（摘要）：{tag:'modemd-mini', op, tech, rsrp, rsrpText, unread, total, hasModem, error}
+  消息格式（新短信）：{tag:'modemd-mini', smsnew:{index, number, timestamp, content, rest, unread, unlocked}}
+
+  短信正文要令牌：设备中心解锁短信后会把令牌放到**同源**的 localStorage['modemd.smsToken']
+  （只在那只标签页活着时有值）—— 这里读到就把它带进 WS 握手（?sms_token=），
+  服务端才会把带正文的 sms 推送发过来；读不到就退化成“未读变多 = 有新短信”。
+
+  用法：/?.... 都不需要，直接 /mini 即可（?theme=light 可切成浅色）。
+-->
+<style>
+  :root {
+    --bg: #0b1220;
+    --fg: #e6f1ff;
+    --muted: #93a4bd;
+    --line: rgba(34, 211, 238, .28);
+    --ok: #22c55e;
+    --mid: #3b82f6;
+    --low: #eab308;
+    --bad: #ef4444;
+    --pill: rgba(255, 255, 255, .09);
+  }
+  html[data-theme="light"] {
+    --bg: #ffffff;
+    --fg: #10203a;
+    --muted: #5b6b83;
+    --line: rgba(11, 114, 133, .25);
+    --pill: rgba(13, 38, 76, .07);
+  }
+  * { box-sizing: border-box; }
+  /* 这一页只活在悬浮小窗里那只 320×150 的 iframe 内 —— 高度必须**锁死**：
+     html/body 撑满 100% 并 overflow:hidden，任何情况下都不出现滚动条。
+     纵向 flex：上两块固定高度，中间「细节」行吸收剩余高度（多了就裁掉），
+     底部「短信 / 设备中心」一行永远留在可见区。 */
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg); }
+  body {
+    font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+      "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 7px 10px 6px;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  .row { display: flex; align-items: center; gap: 6px; }
+  .sp { flex: 1 1 auto; }
+  .muted { color: var(--muted); }
+
+  /* 运营商 + 制式角标 */
+  .opline { min-height: 20px; flex: 0 0 auto; }
+  .op { font-size: 15px; font-weight: 700; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .rat {
+    font-size: 10px; font-weight: 700; line-height: 16px; padding: 0 6px; border-radius: 8px;
+    color: #04121f; background: linear-gradient(135deg, #7ef0d0, #35c6f4); white-space: nowrap;
+  }
+  .rat.g5 { background: linear-gradient(135deg, #86efac, #22c55e); }
+  .rat.ga { background: linear-gradient(135deg, #d8b4fe, #8b5cf6); color: #fff; }
+  .rat.g4 { background: linear-gradient(135deg, #93c5fd, #3b82f6); color: #fff; }
+  .rat.g3 { background: linear-gradient(135deg, #fdba74, #f97316); color: #fff; }
+  .rat.g2 { background: linear-gradient(135deg, #cbd5e1, #94a3b8); }
+
+  /* 信号：柱子 + 大数字 */
+  .sigline { margin-top: 5px; flex: 0 0 auto; }
+  .bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; }
+  .bars i { width: 4px; background: var(--pill); border-radius: 1px; }
+  .bars i:nth-child(1) { height: 5px; }
+  .bars i:nth-child(2) { height: 8px; }
+  .bars i:nth-child(3) { height: 11px; }
+  .bars i:nth-child(4) { height: 14px; }
+  .bars i:nth-child(5) { height: 17px; }
+  .bars.lv-ok i.on { background: var(--ok); }
+  .bars.lv-mid i.on { background: var(--mid); }
+  .bars.lv-low i.on { background: var(--low); }
+  .bars.lv-bad i.on { background: var(--bad); }
+  .val { font-size: 19px; font-weight: 700; letter-spacing: .2px; }
+  .val small { font-size: 11px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+  .grade { font-size: 11px; font-weight: 600; }
+  .lv-ok { color: var(--ok); }
+  .lv-mid { color: var(--mid); }
+  .lv-low { color: var(--low); }
+  .lv-bad { color: var(--bad); }
+
+  /* 细节：可换行的一段，占用剩余高度；装不下就裁掉，不撑出滚动条 */
+  .detail {
+    margin-top: 5px; display: flex; flex-wrap: wrap; gap: 3px 10px; color: var(--muted); font-size: 11px;
+    flex: 1 1 auto; min-height: 0; overflow: hidden;
+  }
+  .detail b { color: var(--fg); font-weight: 600; }
+
+  /* 短信角标：始终固定在底部 */
+  .foot { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line); flex: 0 0 auto; }
+  .sms {
+    display: inline-flex; align-items: center; gap: 5px; text-decoration: none; color: var(--fg);
+    background: var(--pill); border-radius: 999px; padding: 3px 9px; font-size: 11px;
+  }
+  .sms:hover { background: rgba(34, 211, 238, .18); }
+  .sms .cnt {
+    min-width: 17px; height: 17px; line-height: 17px; text-align: center; border-radius: 999px;
+    background: #ef4444; color: #fff; font-weight: 700; font-size: 11px; padding: 0 4px;
+  }
+  .sms.none .cnt { background: #64748b; }
+  .link { color: var(--muted); font-size: 11px; text-decoration: none; }
+  .link:hover { color: var(--fg); text-decoration: underline; }
+</style>
+</head>
+<body>
+  <div class="row opline">
+    <span class="op" id="op">—</span>
+    <span class="rat" id="rat" hidden></span>
+    <span class="sp"></span>
+    <span class="muted" id="plmn"></span>
+  </div>
+
+  <div class="row sigline">
+    <span class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="val" id="rsrp">—<small>dBm</small></span>
+    <span class="grade" id="grade"></span>
+  </div>
+
+  <div class="detail" id="detail"><span>正在连接 modemd…</span></div>
+
+  <div class="row foot">
+    <a class="sms" id="sms" href="?tab=sms" target="_blank" rel="noopener" title="打开设备中心的「短信」页">
+      <span id="smsText">短信</span><span class="cnt" id="smsCnt" hidden>0</span>
+    </a>
+    <span class="sp"></span>
+    <a class="link" id="open" href="/" target="_blank" rel="noopener">设备中心 ↗</a>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------------- 参数 ---------------- */
+  var q = new URLSearchParams(location.search);
+  if (q.get('theme') === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  // modem_id：不指定就跟随第一台模组
+  var WANT_ID = q.has('modem_id') ? parseInt(q.get('modem_id'), 10) : -1;
+
+  /* ---------------- 主题中继（给 LuCI 侧同步） ----------------
+     小窗内容页与设备中心**同源**（同一个端口），所以能读到设备中心的外观设置：
+       · 首选 localStorage['modemd.themeSnapshot'] —— 设备中心每次换肤写进去的**解析后令牌**；
+       · 还没有快照（没打开过设备中心）时，至少把 uiTheme 的深浅色告诉父窗口。
+     父窗口（LuCI 的服务控制页在 :80，跨源）据此实时跟随，不需要自己复制一份令牌表。
+     消息格式：{tag:'modemd-theme', theme:'light'|'dark', accent, vars:{'--bg':…}} */
+  (function relayTheme() {
+    var KEY = 'modemd.themeSnapshot';
+    var FORCED = (q.get('theme') === 'light' || q.get('theme') === 'dark') ? q.get('theme') : '';
+    function readSnapshot() {
+      try { var s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+    }
+    function systemDark() { return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }
+    function themeFromSetting() {
+      try {
+        var m = localStorage.getItem('uiTheme') || 'auto';
+        if (m === 'light' || m === 'dark') return m;
+      } catch (e) { }
+      return systemDark() ? 'dark' : 'light';
+    }
+    // 以快照里的深浅色为准（它就是设备中心 applyTheme 后的结果），拿不到才退回 uiTheme
+    function resolvedTheme() {
+      if (FORCED) return FORCED;
+      var snap = readSnapshot();
+      if (snap && snap.tag === 'modemd-theme' && (snap.theme === 'light' || snap.theme === 'dark')) return snap.theme;
+      return themeFromSetting();
+    }
+    function send() {
+      var snap = readSnapshot();
+      var theme = resolvedTheme();
+      // 顺手把自己也切过来：小窗内容不该和同一个插件里的其它界面深浅色打架
+      document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
+      if (window.parent === window) return; // 直接打开 /mini 调试时没有父窗口
+      var msg = (snap && snap.tag === 'modemd-theme')
+        ? snap
+        : { tag: 'modemd-theme', theme: theme, accent: 'blue', vars: null };
+      try { window.parent.postMessage(msg, '*'); } catch (e) { }
+    }
+    send();
+    // 设备中心在**别的文档**里（概览页 iframe / 另一个标签页）改了主题 → 这里收到 storage 事件
+    window.addEventListener('storage', function (e) {
+      if (!e.key || e.key === KEY || e.key === 'uiTheme' || e.key === 'uiAccent') send();
+    }, false);
+    // 父窗口主动来问（切页/首次渲染时让它重发一次）
+    window.addEventListener('message', function (e) {
+      if (e && e.data && e.data.tag === 'modemd-theme-request') send();
+    }, false);
+    // 系统深浅色变了（uiTheme=auto 时）也要跟上
+    if (window.matchMedia) {
+      var mq = window.matchMedia('(prefers-color-scheme: dark)');
+      var onMQ = function () { if (!FORCED) send(); };
+      if (mq.addEventListener) mq.addEventListener('change', onMQ);
+      else if (mq.addListener) mq.addListener(onMQ);
+    }
+  })();
+
+  var MODEMS = [];            // /api/modems 或 WS 推送来的列表
+  var NET = null;             // 最近一次 network 推送（按 id）
+  var SIGNAL = {};            // 最近一次 signal 推送/快照（按 id）
+  var COUNTS = {};            // smscount 推送（按 id）
+  var SMS_SEEN = {};          // 每模组“已知的短信索引”（判断推送里哪几条是新到的）
+  var SMS_UNREAD = {};        // 上一次的未读数（拿不到正文时用它判断“有新短信”）
+  var lastSmsPushAt = 0;      // 上一次收到带正文的 sms 推送（用来给计数路兜底去重）
+  // SMS_CONTENT：能不能拿到**带正文**的短信推送。
+  //   · 有短信令牌（设备中心解锁过）⇒ 能；
+  //   · 短信密码没启用（外层路由器登录已经接管，见 [ui] require_luci_login）⇒ 也能。
+  // 能拿到正文时就不能再走“未读变多”那条兜底 —— 否则第一条新短信会先弹一张
+  // “有 N 条未读、正文受保护”的卡（`+CMTI` 的计数推送**比正文早**），随后正文卡再弹一次。
+  var SMS_CONTENT = false;
+  // LUCI_SID：父页面（widget.js）拼在 URL 上的 LuCI 会话 ID ⇒ 免登。
+  // 也兼容老写法：modemd_widget cookie（浏览器会自动带上，不用管）。
+  var LUCI_SID = (function () {
+    var m = /[?&]luci_sid=([^&]+)/.exec(location.search || '');
+    var sid = m ? decodeURIComponent(m[1]) : '';
+    return /^[0-9a-zA-Z_-]{16,128}$/.test(sid) ? sid : '';
+  })();
+  (function () {
+    if (smsToken()) { SMS_CONTENT = true; return; }
+    try {
+      fetch('/api/sms/auth', { cache: 'no-store' }).then(function (r) { return r.json(); })
+        .then(function (j) { if (j && j.data && !j.data.required) SMS_CONTENT = true; })
+        .catch(function () { });
+    } catch (e) { }
+  })();
+  var ws = null, retry = null;
+  var VER = '';               // 跑着的 modemd 版本（供父页面小窗的版本标签显示）
+
+  /* 版本：注入主题里的 data-tag 是**安装时**写死的（实测 apk 系统上总是滞后一版），
+     这里从自己源上的 /api/version 取真实版本，随摘要一起 postMessage 给父页面。 */
+  function loadVersion() {
+    return httpGet('/api/version').then(function (j) {
+      VER = (j && j.data && j.data.version) ? String(j.data.version) : '';
+      render();
+    }).catch(function () { });
+  }
+
+  /* 短信令牌：设备中心解锁后写在同源 localStorage 里（键见 index.html 的 SMS_TOKEN_LS）。
+     ⚠️ 它跨会话不持久：设备中心那只标签页一关就清掉，令牌本身也会闲置 30 分钟失效。 */
+  var TOKEN_LS = 'modemd.smsToken';
+  function smsToken() {
+    try { return localStorage.getItem(TOKEN_LS) || ''; } catch (e) { return ''; }
+  }
+
+  /* ---------------- 工具 ---------------- */
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function dash(v) { return (v === undefined || v === null || v === '') ? '-' : v; }
+  function usableName(v) {
+    var s = String(v === undefined || v === null ? '' : v).trim();
+    return (!s || /^[?\-\s]+$/.test(s)) ? '' : s;
+  }
+
+  /* 运营商：与设备中心同一套 MCC/MNC 表（只认四家 + 名字兜底） */
+  var BY_MNC = {
+    '46000': 'cmcc', '46002': 'cmcc', '46004': 'cmcc', '46007': 'cmcc', '46008': 'cmcc',
+    '46001': 'unicom', '46006': 'unicom', '46009': 'unicom', '46010': 'unicom',
+    '46003': 'telecom', '46005': 'telecom', '46011': 'telecom', '46012': 'telecom',
+    '46015': 'cbn'
+  };
+  var CARRIER = {
+    cmcc: '中国移动', unicom: '中国联通', telecom: '中国电信', cbn: '中国广电'
+  };
+  function carrierName(mcc, mnc, name) {
+    var key = String(mcc || '') + String(mnc || '').padStart(2, '0');
+    var code = BY_MNC[key];
+    if (!code) {
+      var s = String(name || '');
+      if (/移动|MOBILE|CMCC/i.test(s)) code = 'cmcc';
+      else if (/联通|UNICOM/i.test(s)) code = 'unicom';
+      else if (/电信|TELECOM/i.test(s)) code = 'telecom';
+      else if (/广电|CBN|BROADNET/i.test(s)) code = 'cbn';
+    }
+    return {
+      code: code || '',
+      short: code ? (CARRIER[code] || '').replace('中国', '') : '',
+      name: code ? (CARRIER[code] || '') : ''
+    };
+  }
+  function opName(st) {
+    var c = carrierName(st && st.mcc, st && st.mnc, st && st.operator);
+    return usableName(st && st.operator) || c.name || '未知运营商';
+  }
+
+  /* 制式角标（与设备中心 ratBadgeOf 同口径：NR / 5GA / 4G / 3G / 2G） */
+  function ratOf(st) {
+    if (!st) return null;
+    var ca = Array.isArray(st.ca) ? st.ca : [];
+    var scc = ca.filter(function (c) { return String((c && c.role) || '').toUpperCase() !== 'PCC'; });
+    var raw = [st.tech, st.tech_label, st.net_tech].filter(Boolean).join(' ').toUpperCase();
+    var caNR = ca.some(function (c) {
+      return /^N\d/i.test(String((c && c.band_label) || '')) ||
+        String((c && c.tech) || '').toUpperCase() === 'NR';
+    });
+    var isNR = caNR || /5G|(^|[^A-Z0-9])NR([^A-Z0-9]|$)/.test(raw);
+    var adv = /5GA|5G-?A([^A-Z]|$)|ADVANCED|REL-?1[89]/.test(raw);
+    if (isNR) return (scc.length || adv) ? { t: '5GA', c: 'ga' } : { t: '5G', c: 'g5' };
+    if (/LTE|4G/.test(raw)) return { t: '4G', c: 'g4' };
+    if (/WCDMA|UMTS|HSPA|TD-?SCDMA|3G/.test(raw)) return { t: '3G', c: 'g3' };
+    if (/GSM|GPRS|EDGE|(^|[^A-Z0-9])2G([^A-Z0-9]|$)/.test(raw)) return { t: '2G', c: 'g2' };
+    return null;
+  }
+
+  /* 信号等级（与设备中心 rsrpLevel 同口径，SS-RSRP） */
+  var RSRP_TXT = ['无信号', '很弱', '偏弱', '一般', '良好', '极好'];
+  function rsrpLevel(v) {
+    if (!v) return 0;
+    return v >= -80 ? 5 : v >= -90 ? 4 : v >= -100 ? 3 : v >= -110 ? 2 : v >= -120 ? 1 : 0;
+  }
+  var QUALITY_TXT = ['无数据', '很差', '偏差', '一般', '良好', '优秀'];
+  function sinrLevel(v) {
+    if (v === undefined || v === null) return -1;
+    return v >= 20 ? 5 : v >= 13 ? 4 : v >= 7 ? 3 : v >= 0 ? 2 : v >= -3 ? 1 : 0;
+  }
+  function rsrqLevel(v) {
+    if (v === undefined || v === null || v === 0) return -1;
+    return v >= -10 ? 5 : v >= -15 ? 4 : v >= -20 ? 3 : v >= -25 ? 2 : 1;
+  }
+  function gradeCls(l) { return l >= 4 ? 'lv-ok' : l === 3 ? 'lv-mid' : l === 2 ? 'lv-low' : 'lv-bad'; }
+
+  /* ---------------- 选模组 ---------------- */
+  function curId() {
+    if (!MODEMS.length) return null;
+    if (WANT_ID >= 0) {
+      for (var i = 0; i < MODEMS.length; i++) if (MODEMS[i].id === WANT_ID) return WANT_ID;
+    }
+    return MODEMS[0].id;
+  }
+
+  /* ---------------- 渲染 ---------------- */
+  function render() {
+    var id = curId();
+    var net = id === null ? null : (NET && NET.id === id ? NET.st : null);
+    var sig = id === null ? {} : (SIGNAL[id] || {});
+    var cnt = id === null ? null : (COUNTS[id] || null);
+    var mod = id === null ? null : MODEMS.filter(function (m) { return m.id === id; })[0];
+    if (!cnt && mod) cnt = { total: mod.sms_total || 0, unread: mod.sms_unread || 0 };
+
+    /* 运营商行 */
+    $('op').textContent = id === null ? '未检测到模组' : (net ? opName(net) : '正在读取运营商…');
+    var rat = ratOf(net);
+    var ratEl = $('rat');
+    if (rat) { ratEl.hidden = false; ratEl.className = 'rat ' + rat.c; ratEl.textContent = rat.t; }
+    else { ratEl.hidden = true; ratEl.textContent = ''; }
+    $('plmn').textContent = id === null ? '' : [net && net.plmn, net && net.tech_label].filter(Boolean).join(' · ');
+
+    /* 信号行：优先 NR 的 SS-RSRP，退回 CESQ 的 LTE RSRP */
+    var rsrp = sig.nr_rsrp || 0;
+    var lv = rsrpLevel(rsrp);
+    var bars = $('bars');
+    bars.className = 'bars ' + (lv ? gradeCls(lv) : '');
+    var bi = bars.getElementsByTagName('i');
+    for (var i = 0; i < bi.length; i++) bi[i].className = (i + 1) <= lv ? 'on' : '';
+    $('rsrp').innerHTML = '';
+    $('rsrp').appendChild(document.createTextNode(rsrp ? String(rsrp) : '—'));
+    var small = el('small', null, rsrp ? 'dBm' : '');
+    $('rsrp').appendChild(small);
+    var grade = $('grade');
+    grade.className = 'grade ' + (lv ? gradeCls(lv) : 'muted');
+    grade.textContent = id === null ? '' : (rsrp ? RSRP_TXT[lv] : '无数据');
+
+    /* 细节行 */
+    var det = $('detail');
+    det.innerHTML = '';
+    function kv(k, v, cls) {
+      if (v === undefined || v === null || v === '' || v === 0) return;
+      var s = el('span', cls || null);
+      s.appendChild(el('span', 'muted', k + ' '));
+      s.appendChild(el('b', null, String(v)));
+      det.appendChild(s);
+    }
+    if (id === null) {
+      det.appendChild(el('span', 'muted', 'modemd 未上报模组（服务没起来 / 没插卡）'));
+    } else {
+      var sl = sinrLevel(sig.nr_sinr);
+      kv('SINR', sig.nr_sinr ? sig.nr_sinr + ' dB' : '', sl >= 0 && sl <= 2 ? 'lv-low' : '');
+      var rl = rsrqLevel(sig.nr_rsrq);
+      kv('RSRQ', sig.nr_rsrq ? sig.nr_rsrq + ' dB' : '');
+      kv('频段', (net && (net.band_label || net.band_text)) || '');
+      if (net && net.apn) kv('APN', net.apn);
+      if (net && net.ipv4) kv('IP', net.ipv4);
+      if (mod && mod.model) kv('模组', mod.model);
+      if (!det.childNodes.length) det.appendChild(el('span', 'muted', '暂无数据（正在查询模组）'));
+    }
+
+    /* 短信角标 */
+    var unread = (cnt && cnt.unread) || 0;
+    var total = (cnt && cnt.total) || 0;
+    var sms = $('sms');
+    var cEl = $('smsCnt');
+    if (unread > 0) { cEl.hidden = false; cEl.textContent = unread > 99 ? '99+' : String(unread); sms.className = 'sms'; }
+    else { cEl.hidden = true; sms.className = 'sms none'; }
+    $('smsText').textContent = unread > 0 ? '未读短信' : (total ? '短信 ' + total + ' 条' : '短信');
+    // 点它去设备中心的「短信」页（那一页要短信密码，未解锁时会先要密码）
+    $('sms').setAttribute('href', '/?embed=1&tab=sms');
+
+    /* 给父窗口（LuCI 侧的小窗）发一份摘要：标题条与收起后的小角标用它。
+       节流 300ms，但**带补发**（trailing）：短时间连着来好几条推送时，
+       最后那一份也必须发出去，否则父窗口的摘要会一直停在旧值上。 */
+    scheduleSummary(rsrp, lv, rat, unread, total, id, net);
+    document.title = id === null ? 'modemd 小窗' :
+      ((net ? opName(net) : '正在读取…') + (rsrp ? ' ' + rsrp + 'dBm' : '') + (unread ? ' · 未读' + unread : ''));
+  }
+
+  var sumTimer = null, lastSend = 0;
+  function scheduleSummary(rsrp, lv, rat, unread, total, id, net) {
+    var wait = 300 - (Date.now() - lastSend);
+    if (wait <= 0) { sendSummary(rsrp, lv, rat, unread, total, id, net); return; }
+    if (sumTimer) clearTimeout(sumTimer);
+    sumTimer = setTimeout(function () {
+      sumTimer = null;
+      sendSummary(rsrp, lv, rat, unread, total, id, net);
+    }, wait);
+  }
+
+  function sendSummary(rsrp, lv, rat, unread, total, id, net) {
+    lastSend = Date.now();
+    try {
+      parent.postMessage({
+        tag: 'modemd-mini',
+        hasModem: id !== null,
+        op: id === null ? '' : opName(net),
+        tech: rat ? rat.t : '',
+        rsrp: rsrp || 0,
+        rsrpText: rsrp ? RSRP_TXT[lv] : '',
+        unread: unread,
+        total: total,
+        ver: VER
+      }, '*');
+    } catch (e) { }
+  }
+
+  function fail(msg) {
+    $('detail').innerHTML = '';
+    $('detail').appendChild(el('span', 'muted', msg));
+  }
+
+  /* ---------------- 数据：先 HTTP 拉一次（缓存，不发 AT），再靠 WS 追 ---------------- */
+  function httpGet(path) {
+    var opts = { cache: 'no-store' };
+    // 父页面（LuCI 页面）拼进来的会话 ID：带上它调接口，不必登录设备中心
+    if (LUCI_SID) opts.headers = { 'X-Luci-Sid': LUCI_SID };
+    return fetch(path, opts).then(function (r) {
+      return r.json().then(function (j) {
+        // 「跟随 LuCI 登录」（[ui] require_luci_login）：未登录/会话过期时回 401 +
+        // need_login —— 这不是“连不上”，要如实说清楚（本页在 LuCI 页面的 iframe 里
+        // 时本来就带着管理员会话，只有直接打开 /mini 才可能碰到）。
+        if (j && j.need_login) throw new Error('NEED_LOGIN');
+        if (j && j.code !== 0) throw new Error(j.errmsg || ('code ' + j.code));
+        return j;
+      });
+    });
+  }
+
+  function loadModems() {
+    return httpGet('/api/modems').then(function (j) {
+      MODEMS = j.data || [];
+      render();
+    });
+  }
+
+  function loadNetwork() {
+    var id = curId();
+    if (id === null) return Promise.resolve();
+    return httpGet('/api/network/status?modem_id=' + id).then(function (j) {
+      NET = { id: id, st: j.data || {} };
+      render();
+    });
+  }
+
+  function connect() {
+    var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    var tok = smsToken();
+    var q = [];
+    if (tok) q.push('sms_token=' + encodeURIComponent(tok));
+    // 嵌在 LuCI 页面里时，父页面会把 LuCI 会话 ID 拼在这里传进来（见 widget.js）：
+    // 带着它握手就不必再登录设备中心也能收到推送（含带正文的短信）。
+    if (LUCI_SID) q.push('luci_sid=' + encodeURIComponent(LUCI_SID));
+    var url = proto + location.host + '/ws' + (q.length ? ('?' + q.join('&')) : '');
+    var sock;
+    try { sock = new WebSocket(url); }
+    catch (e) { scheduleRetry(); return; }
+    ws = sock;
+    sock.onopen = function () {
+      if (sock.readyState === 1) sock.send(JSON.stringify({ action: 'snapshot' }));
+    };
+    sock.onmessage = function (ev) {
+      var m;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+      var id = m.modem_id;
+      switch (m.type) {
+        case 'modems':
+          MODEMS = m.data || [];
+          render();
+          break;
+        case 'signal':
+          if (id !== undefined) SIGNAL[id] = m.data || {};
+          render();
+          break;
+        case 'network':
+          if (id !== undefined) { NET = { id: id, st: m.data || {} }; render(); }
+          break;
+        case 'smscount':
+          if (id !== undefined) {
+            var prev = COUNTS[id];
+            COUNTS[id] = m.data || {};
+            render();
+            onSmsCount(id, prev, COUNTS[id]);
+          }
+          break;
+        case 'sms':
+          /* 带正文的推送：只有握手里带了有效令牌才收得到（服务端 BroadcastSMS 有闸门） */
+          if (id !== undefined) onSmsPush(id, m.data || []);
+          break;
+        // 其它推送（流量/小区/配额/日志…）这里都不需要
+      }
+    };
+    sock.onclose = function () { if (ws === sock) { ws = null; scheduleRetry(); } };
+    sock.onerror = function () { };
+  }
+  function scheduleRetry() {
+    if (retry) return;
+    retry = setTimeout(function () { retry = null; connect(); }, 3000);
+  }
+
+  /* 令牌来了/没了都要换一条 WS（服务端只在握手那一刻看令牌） */
+  function reconnectWS() {
+    if (ws) { var s = ws; ws = null; try { s.onclose = null; s.close(); } catch (e) { } }
+    if (retry) { clearTimeout(retry); retry = null; }
+    connect();
+  }
+  window.addEventListener('storage', function (e) {
+    if (e && e.key === TOKEN_LS) reconnectWS();
+  }, false);
+
+  /* ---------------- 新短信 ---------------- */
+
+  // 带正文的 sms 推送：与设备中心同一套“已知索引”差分。
+  // 首次只建基线不弹（否则一进页面就把存着的短信全弹一遍）。
+  function onSmsPush(id, list) {
+    var now = {}, fresh = [], i, key;
+    for (i = 0; i < list.length; i++) {
+      key = String((list[i] || {}).index);
+      now[key] = true;
+      if (SMS_SEEN[id] && !SMS_SEEN[id][key]) fresh.push(list[i]);
+    }
+    var had = !!SMS_SEEN[id];
+    SMS_SEEN[id] = now;
+    if (!had || !fresh.length) return;
+    lastSmsPushAt = Date.now();
+    SMS_CONTENT = true;   // 收到过正文推送 ⇒ 以后不必再靠“未读变多”兜底
+    var s = fresh[0] || {};   // 后端按时间倒序，第一条就是最新的
+    postSmsNew({
+      index: s.index || '', number: s.number || '', timestamp: s.timestamp || '',
+      content: s.content || '', rest: fresh.length - 1, unlocked: true
+    });
+  }
+
+  // 没有令牌时收不到正文推送 ⇒ 用“未读数变多”当新短信信号（收到的只能提示去看）。
+  function onSmsCount(id, prev, now) {
+    var was = prev ? (Number(prev.unread) || 0) : -1;
+    var n = Number(now && now.unread) || 0;
+    SMS_UNREAD[id] = n;
+    // ⚠️ 有令牌就等正文那条：`+CMTI` 只推条数、**比正文早**（noteSMSArrival 先 +1，
+    //    随后 ReadSMS 才推带正文的列表）—— 两条都当新短信会弹两次。
+    if (SMS_CONTENT) return;
+    if (was < 0 || n <= was) return;                       // 第一拍只当基线；不多就不弹
+    if (Date.now() - lastSmsPushAt < 3000) return;         // 正文卡刚弹过（万一顺序反了）
+    postSmsNew({ unread: n, rest: 0, unlocked: false });
+  }
+
+  function postSmsNew(sms) {
+    if (window.parent === window) return;   // 直接打开 /mini 调试：没有父窗口可弹
+    try { window.parent.postMessage({ tag: 'modemd-mini', smsnew: sms }, '*'); } catch (e) { }
+  }
+
+  /* ---------------- 启动 ---------------- */
+  loadModems()
+    .then(function () {
+      connect();
+      loadVersion();
+      loadNetwork().catch(function () { });
+    })
+    .catch(function (e) {
+      if (e && e.message === 'NEED_LOGIN') {
+        // 未登录：说清楚要做什么，并放慢重试（登录后再回来刷新即可，别每 5 秒刷一次）
+        fail('需要登录：请在设备中心用路由器管理员账号登录（与 LuCI 同一个密码）');
+        setTimeout(function () { loadModems().then(connect).catch(function () { }); }, 30000);
+        return;
+      }
+      fail('连不上 modemd（' + (e && e.message ? e.message : e) + '）—— 正在重试…');
+      setTimeout(function () { loadModems().then(connect).catch(function () { }); }, 5000);
+    });
+
+  /* 兜底轮询：只读 /api/modems（纯内存缓存，不发 AT），保证角标不会因为 WS 断开而卡住 */
+  setInterval(function () { loadModems().catch(function () { }); }, 20000);
+  /* 每 20 秒整份重画一次（顺便把摘要重发给父窗口，父窗口刷新后也能拿到最新值） */
+  setInterval(function () { render(); }, 20000);
+})();
+</script>
+</body>
+</html>

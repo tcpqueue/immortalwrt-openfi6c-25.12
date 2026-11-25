@@ -1162,17 +1162,21 @@ enum {
 	BEACON_REQ_DURATION,
 	BEACON_REQ_BSSID,
 	BEACON_REQ_SSID,
+	BEACON_REQ_REPORTING_DETAIL,
+	BEACON_REQ_CHANNEL_REPORTS,
 	__BEACON_REQ_MAX,
 };
 
 static const struct blobmsg_policy beacon_req_policy[__BEACON_REQ_MAX] = {
 	[BEACON_REQ_ADDR] = { "addr", BLOBMSG_TYPE_STRING },
-	[BEACON_REQ_OP_CLASS] { "op_class", BLOBMSG_TYPE_INT32 },
-	[BEACON_REQ_CHANNEL] { "channel", BLOBMSG_TYPE_INT32 },
-	[BEACON_REQ_DURATION] { "duration", BLOBMSG_TYPE_INT32 },
-	[BEACON_REQ_MODE] { "mode", BLOBMSG_TYPE_INT32 },
-	[BEACON_REQ_BSSID] { "bssid", BLOBMSG_TYPE_STRING },
-	[BEACON_REQ_SSID] { "ssid", BLOBMSG_TYPE_STRING },
+	[BEACON_REQ_OP_CLASS] = { "op_class", BLOBMSG_TYPE_INT32 },
+	[BEACON_REQ_CHANNEL] = { "channel", BLOBMSG_TYPE_INT32 },
+	[BEACON_REQ_DURATION] = { "duration", BLOBMSG_TYPE_INT32 },
+	[BEACON_REQ_MODE] = { "mode", BLOBMSG_TYPE_INT32 },
+	[BEACON_REQ_BSSID] = { "bssid", BLOBMSG_TYPE_STRING },
+	[BEACON_REQ_SSID] = { "ssid", BLOBMSG_TYPE_STRING },
+	[BEACON_REQ_REPORTING_DETAIL] = { "reporting_detail", BLOBMSG_TYPE_INT32 },
+	[BEACON_REQ_CHANNEL_REPORTS] = { "channel_reports", BLOBMSG_TYPE_ARRAY },
 };
 
 static int
@@ -1188,6 +1192,7 @@ hostapd_rrm_beacon_req(struct ubus_context *ctx, struct ubus_object *obj,
 	u8 addr[ETH_ALEN];
 	int mode, rem, ret;
 	int buf_len = 13;
+	int reporting_detail = 255;
 
 	blobmsg_parse(beacon_req_policy, __BEACON_REQ_MAX, tb, blob_data(msg), blob_len(msg));
 
@@ -1205,6 +1210,12 @@ hostapd_rrm_beacon_req(struct ubus_context *ctx, struct ubus_object *obj,
 	if (tb[BEACON_REQ_BSSID] &&
 	    hwaddr_aton(blobmsg_data(tb[BEACON_REQ_BSSID]), bssid))
 		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	if (tb[BEACON_REQ_REPORTING_DETAIL])
+		reporting_detail = blobmsg_get_u32(tb[BEACON_REQ_REPORTING_DETAIL]);
+
+	if (reporting_detail >= 0 && reporting_detail < 3)
+		buf_len += 3;
 
 	req = wpabuf_alloc(buf_len);
 	if (!req)
@@ -1232,6 +1243,14 @@ hostapd_rrm_beacon_req(struct ubus_context *ctx, struct ubus_object *obj,
 		wpabuf_put_u8(req, WLAN_EID_SSID);
 		wpabuf_put_u8(req, blobmsg_data_len(cur) - 1);
 		wpabuf_put_data(req, blobmsg_data(cur), blobmsg_data_len(cur) - 1);
+	}
+
+	/* as per 9-106 */
+	if (reporting_detail >= 0 && reporting_detail < 3) {
+		/* as per 9-104 */
+		wpabuf_put_u8(req, 2);
+		wpabuf_put_u8(req, 1);
+		wpabuf_put_u8(req, reporting_detail);
 	}
 
 	ret = hostapd_send_beacon_req(hapd, addr, 0, req);
@@ -1290,7 +1309,7 @@ hostapd_rrm_lm_req(struct ubus_context *ctx, struct ubus_object *obj,
 
 	wpabuf_put_u8(buf, WLAN_ACTION_RADIO_MEASUREMENT);
 	wpabuf_put_u8(buf, WLAN_RRM_LINK_MEASUREMENT_REQUEST);
-	wpabuf_put_u8(buf, 1);
+	wpabuf_put_u8(buf, UBUS_LMR_TOKEN);
 	/* TX-Power used */
 	wpabuf_put_u8(buf, txp_used);
 	/* Max TX Power */
@@ -1307,7 +1326,7 @@ hostapd_rrm_lm_req(struct ubus_context *ctx, struct ubus_object *obj,
 }
 
 
-void hostapd_ubus_handle_link_measurement(struct hostapd_data *hapd, const u8 *data, size_t len)
+int hostapd_ubus_handle_link_measurement(struct hostapd_data *hapd, const u8 *data, size_t len)
 {
 	const struct ieee80211_mgmt *mgmt = (const struct ieee80211_mgmt *) data;
 	const u8 *pos, *end;
@@ -1318,10 +1337,11 @@ void hostapd_ubus_handle_link_measurement(struct hostapd_data *hapd, const u8 *d
 	pos = mgmt->u.action.u.rrm.variable;
 
 	if (end - pos < 8)
-		return;
+		return false; /* We will not handle this LMR, passing to upstream handler. */
 
-	if (!hapd->ubus.obj.has_subscribers)
-		return;
+	if (!hapd->ubus.obj.has_subscribers || token != UBUS_LMR_TOKEN
+	    || (hapd->link_mesr_req_active && token == hapd->link_measurement_req_token))
+		return false;
 
 	blob_buf_init(&b, 0);
 	blobmsg_add_macaddr(&b, "address", mgmt->sa);
@@ -1332,6 +1352,7 @@ void hostapd_ubus_handle_link_measurement(struct hostapd_data *hapd, const u8 *d
 	blobmsg_add_u16(&b, "rsni", pos[7]);
 
 	ubus_notify(ctx, &hapd->ubus.obj, "link-measurement-report", b.head, -1);
+	return true;
 }
 
 

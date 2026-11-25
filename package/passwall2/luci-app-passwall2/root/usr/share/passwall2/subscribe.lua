@@ -9,13 +9,30 @@ require 'luci.sys'
 local api = require "luci.passwall2.api"
 local c_config = api.c_config
 
+loadfile("/usr/share/passwall2/clash_subconverter.lua")()
+
 local datatypes = api.datatypes
 local split = api.split
 local base64Decode = api.base64Decode
 local jsonParse, jsonStringify = api.jsonc.parse, api.jsonc.stringify
 local UrlEncode, UrlDecode = api.UrlEncode, api.UrlDecode
 local fs = api.fs
-local log = api.log
+local log_buffer
+local function log(...)
+	if log_buffer then
+		table.insert(log_buffer, {...})
+	else
+		api.log(...)
+	end
+end
+
+local function flush_log_buffer()
+	local buffered = log_buffer
+	log_buffer = nil
+	for _, args in ipairs(buffered or {}) do
+		log(unpack(args))
+	end
+end
 local i18n = api.i18n
 local uci, uci_get, uci_set, uci_del, uci_foreach, uci_save = api.uci, api.uci_get_c, api.uci_set_c, api.uci_del_c, api.uci_foreach_c, api.uci_save_c
 
@@ -52,8 +69,6 @@ uci:revert(c_config)
 math.randomseed(os.time() + math.floor(os.clock() * 1000))
 local restart_required = false
 
-local lyaml = require "lyaml"
-
 local has_ss_rust = api.is_finded("sslocal")
 local has_ssr = api.is_finded("ssr-local") and api.is_finded("ssr-redir")
 local has_singbox = api.finded_com("sing-box")
@@ -85,6 +100,7 @@ local DEFAULT_TROJAN_TYPE = api.get_core("trojan_type", {{has_singbox,"sing-box"
 local DEFAULT_VMESS_TYPE = api.get_core("vmess_type", {{has_xray,"xray"},{has_singbox,"sing-box"}})
 local DEFAULT_VLESS_TYPE = api.get_core("vless_type", {{has_xray,"xray"},{has_singbox,"sing-box"}})
 local DEFAULT_HYSTERIA2_TYPE = api.get_core("hysteria2_type", {{has_singbox,"sing-box"},{has_xray,"xray"}})
+local DEFAULT_OTHER_TYPE = api.get_core("other_type", {{has_singbox,"sing-box"},{has_xray,"xray"}})
 local core_has = {
 	["xray"] = has_xray,
 	["sing-box"] = has_singbox,
@@ -140,7 +156,7 @@ do
 	if true then
 		local szType = "@global[0]"
 		local option = "node"
-		
+
 		local node_id = uci_get(szType, option)
 		CONFIG[#CONFIG + 1] = {
 			log = true,
@@ -214,6 +230,7 @@ do
 	if true then
 		local i = 0
 		local option = "lbss"
+		local usedNodes = {}
 		local function is_ip_port(str)
 			if type(str) ~= "string" then return false end
 			local ip, port = str:match("^([%d%.]+):(%d+)$")
@@ -222,9 +239,13 @@ do
 		uci_foreach("haproxy_config", function(t)
 			i = i + 1
 			local node_id = t[option]
+			-- Share selected nodes within each listening port to avoid duplicate backends.
+			local port = t.haproxy_port or ""
+			usedNodes[port] = usedNodes[port] or {}
 			CONFIG[#CONFIG + 1] = {
 				log = true,
 				id = t[".name"],
+				usedNodes = usedNodes[port],
 				remarks = i18n.translatef("HAProxy node list [%s]", i),
 				currentNode = node_id and uci_get(node_id) or nil,
 				set = function(o, server)
@@ -460,6 +481,7 @@ end
 
 -- Retrieve subscribe information (remaining data allowance, expiration time).
 local subscribe_info = {}
+local subscribe_info_from_headers = {}
 local function get_subscribe_info(cfgid, value)
 	if type(cfgid) ~= "string" or cfgid == "" or type(value) ~= "string" then
 		return
@@ -498,344 +520,30 @@ local function set_ss_implementation(ss_type, result)
 	return result
 end
 
-local function parseClashNode(node, add_mode, group, sub_cfg)
-	local sub_allowinsecure = DEFAULT_ALLOWINSECURE
-	local sub_ss_type = DEFAULT_SS_TYPE
-	local sub_trojan_type = DEFAULT_TROJAN_TYPE
-	local sub_vmess_type = DEFAULT_VMESS_TYPE
-	local sub_vless_type = DEFAULT_VLESS_TYPE
-	local sub_hysteria2_type = DEFAULT_HYSTERIA2_TYPE
-	local sub_hy_up_mbps, sub_hy_down_mbps
-	if sub_cfg then
-		if sub_cfg.allowInsecure and sub_cfg.allowInsecure ~= "1" then
-			sub_allowinsecure = nil
-		end
-		local ss_type = sub_cfg.ss_type or "global"
-		if ss_type ~= "global" and core_has[ss_type] then
-			sub_ss_type = ss_type
-		end
-		local trojan_type = sub_cfg.trojan_type or "global"
-		if trojan_type ~= "global" and core_has[trojan_type] then
-			sub_trojan_type = trojan_type
-		end
-		local vmess_type = sub_cfg.vmess_type or "global"
-		if vmess_type ~= "global" and core_has[vmess_type] then
-			sub_vmess_type = vmess_type
-		end
-		local vless_type = sub_cfg.vless_type or "global"
-		if vless_type ~= "global" and core_has[vless_type] then
-			sub_vless_type = vless_type
-		end
-		local hysteria2_type = sub_cfg.hysteria2_type or "global"
-		if hysteria2_type ~= "global" and core_has[hysteria2_type] then
-			sub_hysteria2_type = hysteria2_type
-		end
-		sub_hy_up_mbps = sub_cfg.hysteria_up_mbps
-		sub_hy_down_mbps = sub_cfg.hysteria_down_mbps
+-- Split URI hosts and ports, support IPv6 without a port, and strip paths.
+local function parse_host_port(host_port, default_port)
+	local authority = (host_port or ""):gsub("/.*$", "")
+	local address, port = authority:match("^%[([^%]]+)%]:(.*)$")
+	if not address then
+		address = authority:match("^%[([^%]]+)%]$")
 	end
-	local result = {
-		timeout = 60,
-		add_mode = add_mode, -- `0` for manual configuration, `1` for import, `2` for subscription
-		group = group
-	}
-	result.remarks = node.name
-	result.address = node.server
-	result.port = node.port
-
-	if node.type == 'ss' then
-		result = set_ss_implementation(sub_ss_type, result)
-		if not result then return nil end
-		result.method = node.cipher
-		result.ss_method = node.cipher
-		result.password = node.password
-		if node.plugin == "obfs" then
-			result.plugin = "obfs-local"
-		elseif node.plugin == "v2ray-plugin" then
-			result.plugin = "v2ray-plugin"
-		end
-		if result.plugin then
-			result.plugin_enabled = "1"
-			if result.type == 'Xray' then
-				if result.plugin ~= "obfs-local" then
-					result.plugin_enabled = nil
-					result.error_msg = i18n.translatef("%s unsupport SS %s plugin.", "Xray", result.plugin)
-				end
-			elseif result.type == 'sing-box' then
-				if result.plugin ~= "obfs-local" and result.plugin ~= "v2ray-plugin" then
-					result.plugin_enabled = nil
-					result.error_msg = i18n.translatef("%s unsupport SS %s plugin.", "Sing-Box", result.plugin)
-				end
-			end
-			if node["plugin-opts"] and result.plugin_enabled == "1" then
-				if node.plugin == "obfs" then
-					local plugin_opts = ""
-					local opts_mode = node["plugin-opts"].mode
-					if opts_mode then
-						plugin_opts = plugin_opts .. "obfs=" .. opts_mode .. ";"
-					end
-					local opts_host = node["plugin-opts"].host
-					if opts_host then
-						plugin_opts = plugin_opts .. "obfs-host=" .. opts_host
-					end
-					result.plugin_opts = plugin_opts
-				elseif node.plugin == "v2ray-plugin" then
-					local plugin_opts = ""
-					local opts_mode = node["plugin-opts"].mode
-					local opts_tls = node["plugin-opts"].tls
-					if opts_tls then
-						plugin_opts = plugin_opts .. "tls;"
-					end
-					local opts_skip_cert_verify = node["plugin-opts"]["skip-cert-verify"]
-					local opts_host = node["plugin-opts"].host
-					if opts_host then
-						plugin_opts = plugin_opts .. "host=" .. opts_host .. ";"
-					end
-					local opts_path = node["plugin-opts"].path
-					local opts_mux = node["plugin-opts"].mux
-					if node["plugin-opts"].headers then
-						--todo
-					end
-					result.plugin_opts = plugin_opts
-				end
-			end
-		end
-	elseif node.type == 'ssr' then
-		if not has_ssr then
-			log(2, i18n.translatef("Skipping the %s node is due to incompatibility with the %s core program or incorrect node usage type settings.", "SSR", "shadowsocksr-libev"))
-			return nil
-		end
-		result.type = "SSR"
-		result.method = node.cipher
-		result.password = node.password
-		result.obfs = node.obfs
-		result.protocol = node.protocol
-		result.obfs_param = node["obfs-param"]
-		result.protocol_param = node["protocol-param"]
-	elseif node.type == 'vmess' then
-		if sub_vmess_type == "sing-box" and has_singbox then
-			result.type = 'sing-box'
-		elseif sub_vmess_type == "xray" and has_xray then
-			result.type = "Xray"
-		else
-			log(2, i18n.translatef("Skipping the %s node is due to incompatibility with the %s core program or incorrect node usage type settings.", "VMess", "VMess"))
-			return nil
-		end
-		result.protocol = 'vmess'
-		result.uuid = node.uuid
-		result.alter_id = node.alterId
-		result.security = node.cipher or "auto"
-		result.tcp_fast_open = node.tfo
-		result.tls = "0"
-		if node.tls then
-			result.tls = "1"
-			result.tls_serverName = node.servername or ""
-			local insecure = node["skip-cert-verify"]
-			result.tls_allowInsecure = insecure and "1" or "0"
-			if sub_allowinsecure then
-				result.tls_allowInsecure = "1"
-			end
-		end
-		result.transport = node.network and string.lower(node.network) or "tcp"
-		if result.type == "sing-box" and result.transport == "raw" then 
-			result.transport = "tcp"
-		elseif result.type == "Xray" and result.transport == "tcp" then
-			result.transport = "raw"
-		end
-		if result.transport == 'ws' then
-			local ws_opts = node["ws-opts"]
-			if ws_opts then
-				if ws_opts.headers then
-					result.ws_host = ws_opts.headers.Host or ws_opts.headers.host
-				end
-				if ws_opts.path then
-					result.ws_path = ws_opts.path
-					if ws_opts["max-early-data"] then
-						if result.type == "sing-box" then
-							result.ws_enableEarlyData = "1"
-							result.ws_maxEarlyData = tonumber(ws_opts["max-early-data"])
-							result.ws_earlyDataHeaderName = "Sec-WebSocket-Protocol"
-						elseif result.type == "Xray" then
-							result.ws_path = result.ws_path .. "?ed=" .. ws_opts["max-early-data"]
-						end
-					end
-				end
-			end
-		elseif result.transport == 'h2' then
-			local h2_opts = node["h2-opts"]
-			if h2_opts then
-				if result.type == "sing-box" then
-					result.http_path = h2_opts.path
-					result.http_host = h2_opts.host
-				elseif result.type == "Xray" then
-					result.xhttp_mode = "stream-one"
-					result.xhttp_path = h2_opts.path
-					result.xhttp_host = h2_opts.host
-				end
-			end
-		elseif result.transport == 'grpc' then
-			local grpc_opts = node["grpc-opts"]
-			if grpc_opts then
-				result.grpc_serviceName = grpc_opts["grpc-service-name"]
-			end
-		end
-	elseif node.type == 'vless' then
-		if sub_vless_type == "sing-box" and has_singbox then
-			result.type = 'sing-box'
-		elseif sub_vless_type == "xray" and has_xray then
-			result.type = "Xray"
-		else
-			log(2, i18n.translatef("Skipping the %s node is due to incompatibility with the %s core program or incorrect node usage type settings.", "VLESS", "VLESS"))
-			return nil
-		end
-		result.protocol = "vless"
-		result.uuid = node.uuid
-		result.tcp_fast_open = node.tfo
-		result.encryption = node.cipher or "none"
-		result.flow = node.flow
-		result.tls = "0"
-		if node.tls then
-			result.tls = "1"
-			result.tls_serverName = node.servername or ""
-			local insecure = node["skip-cert-verify"]
-			result.tls_allowInsecure = insecure and "1" or "0"
-			if sub_allowinsecure then
-				result.tls_allowInsecure = "1"
-			end
-		end
-		if node.tls and node["reality-opts"] and node["reality-opts"]["public-key"] then
-			result.reality = "1"
-			result.reality_publicKey = (node["reality-opts"] and node["reality-opts"]["public-key"]) or nil
-			result.reality_shortId = (node["reality-opts"] and node["reality-opts"]["short-id"]) or nil
-		end
-		result.transport = node.network and string.lower(node.network) or "tcp"
-		if result.type == "sing-box" and result.transport == "raw" then 
-			result.transport = "tcp"
-		elseif result.type == "Xray" and result.transport == "tcp" then
-			result.transport = "raw"
-		end
-		if result.transport == 'ws' then
-			local ws_opts = node["ws-opts"]
-			if ws_opts then
-				if ws_opts.headers then
-					result.ws_host = ws_opts.headers.Host or ws_opts.headers.host
-				end
-				if ws_opts.path then
-					result.ws_path = ws_opts.path
-					if ws_opts["max-early-data"] then
-						if result.type == "sing-box" then
-							result.ws_enableEarlyData = "1"
-							result.ws_maxEarlyData = tonumber(ws_opts["max-early-data"])
-							result.ws_earlyDataHeaderName = "Sec-WebSocket-Protocol"
-						elseif result.type == "Xray" then
-							result.ws_path = result.ws_path .. "?ed=" .. ws_opts["max-early-data"]
-						end
-					end
-				end
-			end
-		end
-	elseif node.type == 'trojan' then
-		if sub_trojan_type == "sing-box" and has_singbox then
-			result.type = 'sing-box'
-			result.protocol = 'trojan'
-		elseif sub_trojan_type == "xray" and has_xray then
-			result.type = 'Xray'
-			result.protocol = 'trojan'
-		else
-			log(2, i18n.translatef("Skipping the %s node is due to incompatibility with the %s core program or incorrect node usage type settings.", "Trojan", "Trojan"))
-			return nil
-		end
-		result.password = node.password
-		result.tls = '1'
-		result.tls_serverName = node.sni or ""
-		local insecure = node["skip-cert-verify"]
-		result.tls_allowInsecure = insecure and "1" or "0"
-		if sub_allowinsecure then
-			result.tls_allowInsecure = "1"
-		end
-		if node.alpn then
-			--todo
-		end
-		if node.network == "grpc" then
-			if node["grpc-opts"] then
-				result.grpc_serviceName = node["grpc-opts"]["grpc-service-name"]
-			end
-		elseif node.network == "ws" then
-			local ws_opts = node["ws-opts"]
-			if ws_opts then
-				result.ws_path = ws_opts.path
-				if ws_opts.headers then
-					result.ws_host = ws_opts.headers.Host or ws_opts.headers.host
-				end
-			end
-		end
-	elseif node.type == 'anytls' then
-		if has_singbox then
-			result.type = 'sing-box'
-			result.protocol = "anytls"
-		else
-			log(2, i18n.translatef("Skip the %s node because the %s core program is not installed.", "AnyTLS", "Sing-Box 1.12"))
-			return nil
-		end
-		result.password = node.password
-		result.tls = '1'
-		result.tls_serverName = node.sni or ""
-		local insecure = node["skip-cert-verify"]
-		result.tls_allowInsecure = insecure and "1" or "0"
-		if sub_allowinsecure then
-			result.tls_allowInsecure = "1"
-		end
-		if node["client-fingerprint"] then
-			result.utls = "1"
-			result.fingerprint = node["client-fingerprint"]
-		end
-		if node.tls and node["reality-opts"] and node["reality-opts"]["public-key"] then
-			result.reality = "1"
-			result.reality_publicKey = node["reality-opts"]["public-key"]
-			result.reality_shortId = node["reality-opts"]["short-id"]
-		end
-		if node["disable-reuse"] then
-			result.anytls_disable_reuse = "1"
-		end
-	elseif node.type == 'snell' then
-		if has_singbox then
-			result.type = 'sing-box'
-			result.protocol = "snell"
-		else
-			log(2, i18n.translatef("Skip the %s node because the %s core program is not installed.", "Snell", "Sing-Box 1.14"))
-			return nil
-		end
-		result.password = node.password
-		result.snell_psk = node.psk
-		result.snell_version = node.version or "4"
-		if result.snell_version == "4" then
-			local obfs_opts = node["obfs-opts"] or {}
-			result.snell_obfs_mode = obfs_opts.mode or "none"
-			result.snell_obfs_host = obfs_opts.host
-		else
-			result.snell_mode = "default"
-		end
-		result.snell_reuse = node.reuse and "1" or "0"
+	if not address then
+		address, port = authority:match("^([^:]+):(.*)$")
 	end
-	if not result.remarks or result.remarks == "" then
-		if result.address and result.port then
-			result.remarks = result.address .. ':' .. result.port
-		else
-			result.remarks = "NULL"
-		end
-	end
-	return result
+	return address or authority, (port and port ~= "") and port or default_port
 end
 
--- Processing Clash data
-local function processClashData(content, add_mode, group, sub_cfg)
-	local results = {}
-	for i, node in ipairs(content.proxies or {}) do
-		local result = parseClashNode(node, add_mode, group, sub_cfg)
-		if result then
-			table.insert(results, result)
-		end
+local function parse_raw_http_list(value)
+	if not value or value == "" then return nil end
+	-- v2rayN shares RAW HTTP Host and Path lists as comma-separated strings.
+	local items = type(value) == "string" and split(value, ",") or value
+	if type(items) ~= "table" then return nil end
+	local values = {}
+	for _, item in ipairs(items) do
+		item = api.trim(item)
+		if item ~= "" then values[#values + 1] = item end
 	end
-	return results
+	return #values > 0 and values or nil
 end
 
 -- Processing data
@@ -847,6 +555,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 	local sub_vmess_type = DEFAULT_VMESS_TYPE
 	local sub_vless_type = DEFAULT_VLESS_TYPE
 	local sub_hysteria2_type = DEFAULT_HYSTERIA2_TYPE
+	local sub_other_type = DEFAULT_OTHER_TYPE
 	local sub_hy_up_mbps, sub_hy_down_mbps
 	if sub_cfg then
 		if sub_cfg.allowInsecure and sub_cfg.allowInsecure ~= "1" then
@@ -871,6 +580,10 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 		local hysteria2_type = sub_cfg.hysteria2_type or "global"
 		if hysteria2_type ~= "global" and core_has[hysteria2_type] then
 			sub_hysteria2_type = hysteria2_type
+		end
+		local other_type = sub_cfg.other_type or "global"
+		if other_type ~= "global" and core_has[other_type] then
+			sub_other_type = other_type
 		end
 		sub_hy_up_mbps = sub_cfg.hysteria_up_mbps
 		sub_hy_down_mbps = sub_cfg.hysteria_down_mbps
@@ -899,7 +612,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 		result.protocol = hostInfo[#hostInfo-3]
 		result.method = hostInfo[#hostInfo-2]
 		result.obfs = hostInfo[#hostInfo-1]
-		result.password = base64Decode(hostInfo[#hostInfo])	
+		result.password = base64Decode(hostInfo[#hostInfo])
 		local params = {}
 		for _, v in pairs(split(dat[2], '&')) do
 			local s = v:find("=", 1, true)
@@ -933,17 +646,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 				info.security = (#id_info > 1 and id_info[1] ~= "") and id_info[1] or "auto"
 				info.id = id_info[#id_info]
 
-				local addr, port = sp[2], "443"
-				if api.is_ipv6addrport(addr) then
-					local a, p = addr:match("^%[(.+)%]:(%d+)$")
-					if a then addr, port = a, p end
-					addr = api.get_ipv6_only(addr)
-				else
-					local host_port = split(addr, ":")
-					addr = host_port[1]
-					if #host_port > 1 then port = host_port[#host_port] end
-				end
-				info.add, info.port = addr, port
+				info.add, info.port = parse_host_port(sp[2], "443")
 
 				local params = {}
 				for _, v in pairs(split(Info[2], '&')) do
@@ -986,7 +689,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 
 		if not info.net then info.net = "tcp" end
 		info.net = string.lower(info.net)
-		if result.type == "sing-box" and info.net == "raw" then 
+		if result.type == "sing-box" and info.net == "raw" then
 			info.net = "tcp"
 		elseif result.type == "Xray" and info.net == "tcp" then
 			info.net = "raw"
@@ -1000,21 +703,6 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 		if info.net == 'ws' then
 			result.ws_host = info.host
 			result.ws_path = info.path
-			if result.type == "sing-box" and info.path then
-				local ws_path_dat = split(info.path, "?")
-				local ws_path = ws_path_dat[1]
-				local ws_path_params = {}
-				for _, v in pairs(split(ws_path_dat[2], '&')) do
-					local t = split(v, '=')
-					ws_path_params[t[1]] = t[2]
-				end
-				if ws_path_params.ed and tonumber(ws_path_params.ed) then
-					result.ws_path = ws_path
-					result.ws_enableEarlyData = "1"
-					result.ws_maxEarlyData = tonumber(ws_path_params.ed)
-					result.ws_earlyDataHeaderName = "Sec-WebSocket-Protocol"
-				end
-			end
 		end
 		if info.net == "http" then
 			if result.type == "Xray" then
@@ -1031,8 +719,10 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 				info.type = "none"
 			end
 			result.tcp_guise = info.type
-			result.tcp_guise_http_host = (info.host and info.host ~= "") and { info.host } or nil
-			result.tcp_guise_http_path = (info.path and info.path ~= "") and { info.path } or nil
+			if result.tcp_guise == "http" then
+				result.tcp_guise_http_host = parse_raw_http_list(info.host)
+				result.tcp_guise_http_path = parse_raw_http_list(info.path)
+			end
 		end
 		if info.net == 'kcp' or info.net == 'mkcp' then
 			info.net = "mkcp"
@@ -1150,19 +840,8 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 		local hostInfo = split(base64Decode(UrlDecode(info)), "@")
 		if hostInfo and #hostInfo > 0 then
 			local host_port = hostInfo[#hostInfo]
-			-- [2001:4860:4860::8888]:443
-			-- 8.8.8.8:443
-			if host_port:find(":") then
-				local sp = split(host_port, ":")
-				result.port = sp[#sp]
-				if api.is_ipv6addrport(host_port) then
-					result.address = api.get_ipv6_only(host_port)
-				else
-					result.address = sp[1]
-				end
-			else
-				result.address = host_port
-			end
+			-- SIP002 requires an explicit port, so do not supply a default.
+			result.address, result.port = parse_host_port(host_port)
 
 			local userinfo = nil
 			if #hostInfo > 2 then
@@ -1180,20 +859,6 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 				password = userinfo:sub(userinfo:find(":") + 1, #userinfo)
 			else
 				password = hostInfo[1]  -- Some links use plaintext UUIDs as passwords.
-			end
-
-			-- Determine if the password is URL encoded
-			local function isURLEncodedPassword(pwd)
-				if not pwd:find("%%[0-9A-Fa-f][0-9A-Fa-f]") then
-					return false
-				end
-				local ok, decoded = pcall(UrlDecode, pwd)
-				return ok and UrlEncode(decoded) == pwd
-			end
-
-			local decoded = UrlDecode(password)
-			if isURLEncodedPassword(password) and decoded then
-				password = decoded
 			end
 
 			local _method = (method or "none"):lower()
@@ -1267,7 +932,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 
 			if params.type then
 				params.type = string.lower(params.type)
-				if result.type == "sing-box" and params.type == "raw" then 
+				if result.type == "sing-box" and params.type == "raw" then
 					params.type = "tcp"
 				elseif result.type == "Xray" and params.type == "tcp" then
 					params.type = "raw"
@@ -1282,21 +947,6 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 					if params.type == 'ws' then
 						result.ws_host = params.host
 						result.ws_path = params.path
-						if result.type == "sing-box" and params.path then
-							local ws_path_dat = split(params.path, "%?")
-							local ws_path = ws_path_dat[1]
-							local ws_path_params = {}
-							for _, v in pairs(split(ws_path_dat[2], '&')) do
-								local t = split(v, '=')
-								ws_path_params[t[1]] = t[2]
-							end
-							if ws_path_params.ed and tonumber(ws_path_params.ed) then
-								result.ws_path = ws_path
-								result.ws_enableEarlyData = "1"
-								result.ws_maxEarlyData = tonumber(ws_path_params.ed)
-								result.ws_earlyDataHeaderName = "Sec-WebSocket-Protocol"
-							end
-						end
 					end
 					if params.type == "http" then
 						if result.type == "sing-box" then
@@ -1312,8 +962,10 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 					end
 					if params.type == 'raw' or params.type == 'tcp' then
 						result.tcp_guise = params.headerType or "none"
-						result.tcp_guise_http_host = (params.host and params.host ~= "") and { params.host } or nil
-						result.tcp_guise_http_path = (params.path and params.path ~= "") and { params.path } or nil
+						if result.tcp_guise == "http" then
+							result.tcp_guise_http_host = parse_raw_http_list(params.host)
+							result.tcp_guise_http_path = parse_raw_http_list(params.path)
+						end
 					end
 					if params.type == 'kcp' or params.type == 'mkcp' then
 						result.transport = "mkcp"
@@ -1432,7 +1084,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 			log(2, i18n.translatef("Skipping the %s node is due to incompatibility with the %s core program or incorrect node usage type settings.", "Trojan", "Trojan"))
 			return nil
 		end
-		
+
 		local alias = ""
 		if content:find("#") then
 			local idx_sp = content:find("#")
@@ -1454,19 +1106,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 					params[v:sub(1, s - 1)] = UrlDecode(v:sub(s + 1))
 				end
 			end
-			-- [2001:4860:4860::8888]:443
-			-- 8.8.8.8:443
-			if host_port:find(":") then
-				local sp = split(host_port, ":")
-				port = sp[#sp]
-				if api.is_ipv6addrport(host_port) then
-					result.address = api.get_ipv6_only(host_port)
-				else
-					result.address = sp[1]
-				end
-			else
-				result.address = host_port
-			end
+			result.address, port = parse_host_port(host_port, port)
 
 			result.port = port
 
@@ -1496,7 +1136,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 
 			if not params.type then params.type = "tcp" end
 			params.type = string.lower(params.type)
-			if result.type == "sing-box" and params.type == "raw" then 
+			if result.type == "sing-box" and params.type == "raw" then
 				params.type = "tcp"
 			elseif result.type == "Xray" and params.type == "tcp" then
 				params.type = "raw"
@@ -1510,21 +1150,6 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 			if params.type == 'ws' then
 				result.ws_host = params.host
 				result.ws_path = params.path
-				if result.type == "sing-box" and params.path then
-					local ws_path_dat = split(params.path, "%?")
-					local ws_path = ws_path_dat[1]
-					local ws_path_params = {}
-					for _, v in pairs(split(ws_path_dat[2], '&')) do
-						local t = split(v, '=')
-						ws_path_params[t[1]] = t[2]
-					end
-					if ws_path_params.ed and tonumber(ws_path_params.ed) then
-						result.ws_path = ws_path
-						result.ws_enableEarlyData = "1"
-						result.ws_maxEarlyData = tonumber(ws_path_params.ed)
-						result.ws_earlyDataHeaderName = "Sec-WebSocket-Protocol"
-					end
-				end
 			end
 			if params.type == "http" then
 				if result.type == "sing-box" then
@@ -1540,8 +1165,10 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 			end
 			if params.type == 'raw' or params.type == 'tcp' then
 				result.tcp_guise = params.headerType or "none"
-				result.tcp_guise_http_host = (params.host and params.host ~= "") and { params.host } or nil
-				result.tcp_guise_http_path = (params.path and params.path ~= "") and { params.path } or nil
+				if result.tcp_guise == "http" then
+					result.tcp_guise_http_host = parse_raw_http_list(params.host)
+					result.tcp_guise_http_path = parse_raw_http_list(params.path)
+				end
 			end
 			if params.type == 'kcp' or params.type == 'mkcp' then
 				result.transport = "mkcp"
@@ -1618,26 +1245,14 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 					params[v:sub(1, s - 1)] = UrlDecode(v:sub(s + 1))
 				end
 			end
-			-- [2001:4860:4860::8888]:443
-			-- 8.8.8.8:443
-			if host_port:find(":") then
-				local sp = split(host_port, ":")
-				port = sp[#sp]
-				if api.is_ipv6addrport(host_port) then
-					result.address = api.get_ipv6_only(host_port)
-				else
-					result.address = sp[1]
-				end
-			else
-				result.address = host_port
-			end
+			result.address, port = parse_host_port(host_port, port)
 
 			if not params.type then params.type = "tcp" end
 			params.type = string.lower(params.type)
 			if ({ xhttp=true, kcp=true, mkcp=true })[params.type] and result.type ~= "Xray" and has_xray then
 				result.type = "Xray"
 			end
-			if result.type == "sing-box" and params.type == "raw" then 
+			if result.type == "sing-box" and params.type == "raw" then
 				params.type = "tcp"
 			elseif result.type == "Xray" and params.type == "tcp" then
 				params.type = "raw"
@@ -1651,21 +1266,6 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 			if params.type == 'ws' then
 				result.ws_host = params.host
 				result.ws_path = params.path
-				if result.type == "sing-box" and params.path then
-					local ws_path_dat = split(params.path, "%?")
-					local ws_path = ws_path_dat[1]
-					local ws_path_params = {}
-					for _, v in pairs(split(ws_path_dat[2], '&')) do
-						local t = split(v, '=')
-						ws_path_params[t[1]] = t[2]
-					end
-					if ws_path_params.ed and tonumber(ws_path_params.ed) then
-						result.ws_path = ws_path
-						result.ws_enableEarlyData = "1"
-						result.ws_maxEarlyData = tonumber(ws_path_params.ed)
-						result.ws_earlyDataHeaderName = "Sec-WebSocket-Protocol"
-					end
-				end
 			end
 			if params.type == "http" then
 				if result.type == "sing-box" then
@@ -1681,8 +1281,10 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 			end
 			if params.type == 'raw' or params.type == 'tcp' then
 				result.tcp_guise = params.headerType or "none"
-				result.tcp_guise_http_host = (params.host and params.host ~= "") and { params.host } or nil
-				result.tcp_guise_http_path = (params.path and params.path ~= "") and { params.path } or nil
+				if result.tcp_guise == "http" then
+					result.tcp_guise_http_host = parse_raw_http_list(params.host)
+					result.tcp_guise_http_path = parse_raw_http_list(params.path)
+				end
 			end
 			if params.type == 'kcp' or params.type == 'mkcp' then
 				result.transport = "mkcp"
@@ -1776,7 +1378,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 			content = content:sub(0, idx_sp - 1)
 		end
 		result.remarks = UrlDecode(alias)
-		
+
 		local query = split(content:gsub("/%?", "?"), '%?')
 		local host_port = query[1]
 		local params = {}
@@ -1786,19 +1388,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 				params[v:sub(1, s - 1)] = v:sub(s + 1)
 			end
 		end
-		-- [2001:4860:4860::8888]:443
-		-- 8.8.8.8:443
-		if host_port:find(":") then
-			local sp = split(host_port, ":")
-			result.port = sp[#sp]
-			if api.is_ipv6addrport(host_port) then
-				result.address = api.get_ipv6_only(host_port)
-			else
-				result.address = sp[1]
-			end
-		else
-			result.address = host_port
-		end
+		result.address, result.port = parse_host_port(host_port, "443")
 		result.hysteria_obfs = params.obfsParam
 		result.hysteria_auth_type = "string"
 		result.hysteria_auth_password = params.auth
@@ -1834,19 +1424,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 				params[v:sub(1, s - 1):lower()] = UrlDecode(v:sub(s + 1))
 			end
 		end
-		-- [2001:4860:4860::8888]:443
-		-- 8.8.8.8:443
-		if host_port:find(":") then
-			local sp = split(host_port, ":")
-			result.port = sp[#sp]
-			if api.is_ipv6addrport(host_port) then
-				result.address = api.get_ipv6_only(host_port)
-			else
-				result.address = sp[1]
-			end
-		else
-			result.address = host_port
-		end
+		result.address, result.port = parse_host_port(host_port, "443")
 		result.tls_serverName = params.sni
 		result.tls_pinSHA256 = params.pcs or params.pinsha256
 		result.tls_CertByName = params.vcn
@@ -1914,17 +1492,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 				params[v:sub(1, s - 1):lower()] = UrlDecode(v:sub(s + 1))
 			end
 		end
-		if host_port:find(":") then
-			local sp = split(host_port, ":")
-			result.port = sp[#sp]
-			if api.is_ipv6addrport(host_port) then
-				result.address = api.get_ipv6_only(host_port)
-			else
-				result.address = sp[1]
-			end
-		else
-			result.address = host_port
-		end
+		result.address, result.port = parse_host_port(host_port, "443")
 		result.tls_serverName = params.sni
 		result.tls_disable_sni = params.disable_sni
 		result.tls_pinSHA256 = params.pcs or params.pinsha256
@@ -1963,19 +1531,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 					params[v:sub(1, s - 1):lower()] = UrlDecode(v:sub(s + 1))
 				end
 			end
-			-- [2001:4860:4860::8888]:443
-			-- 8.8.8.8:443
-			if host_port:find(":") then
-				local sp = split(host_port, ":")
-				port = sp[#sp]
-				if api.is_ipv6addrport(host_port) then
-					result.address = api.get_ipv6_only(host_port)
-				else
-					result.address = sp[1]
-				end
-			else
-				result.address = host_port
-			end
+			result.address, port = parse_host_port(host_port, port)
 			result.tls = "0"
 			if not params.security or params.security == "" then
 				params.security = "tls"
@@ -2024,13 +1580,13 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 			local contents = split(content, "@")
 			local auth = contents[1] or ""
 			local idx = auth:find(":", 1, true)
-			if not idx then -- Fixed some links that encode the colon between username and password.
-				auth = UrlDecode(auth)
-				idx = auth:find(":", 1, true)
-			end
+			-- Split on the literal colon before decoding; without a separator, the entire userinfo is the password.
 			if idx then
 				result.username = UrlDecode(auth:sub(1, idx - 1))
 				result.password = UrlDecode(auth:sub(idx + 1))
+			else
+				result.username = ""
+				result.password = UrlDecode(auth)
 			end
 			Info = (contents[2] or ""):gsub("/%?", "?")
 		end
@@ -2043,17 +1599,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 				params[v:sub(1, s - 1)] = UrlDecode(v:sub(s + 1))
 			end
 		end
-		if host_port:find(":") then
-			local sp = split(host_port, ":")
-			result.port = sp[#sp]
-			if api.is_ipv6addrport(host_port) then
-				result.address = api.get_ipv6_only(host_port)
-			else
-				result.address = sp[1]
-			end
-		else
-			result.address = host_port
-		end
+		result.address, result.port = parse_host_port(host_port, "443")
 		result.tls_serverName = params.sni
 		result.uot = params.uot
 		result.naive_insecure_concurrency = params["insecure-concurrency"] or "0"
@@ -2097,20 +1643,7 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 				params[UrlDecode(v:sub(1, s - 1)):lower()] = UrlDecode(v:sub(s + 1))
 			end
 		end
-		-- [2001:4860:4860::8888]:443
-		-- 8.8.8.8:443
-		result.port = "443"
-		if host_port:find(":") then
-			local sp = split(host_port, ":")
-			result.port = sp[#sp]
-			if api.is_ipv6addrport(host_port) then
-				result.address = api.get_ipv6_only(host_port)
-			else
-				result.address = sp[1]
-			end
-		else
-			result.address = host_port
-		end
+		result.address, result.port = parse_host_port(host_port, "443")
 		result.snell_psk = params.psk or result.snell_psk
 		result.password = params.userkey
 		result.snell_version = params.version or "4"
@@ -2121,6 +1654,187 @@ local function processData(szType, content, add_mode, group, sub_cfg)
 			result.snell_mode = params.mode or "default"
 		end
 		result.snell_reuse = (params.reuse == "1") and "1" or "0"
+	elseif szType == "wireguard" then
+		-- wireguard://<client_private_key>@<server>:<port>?publicKey=<server_public_key>&address=<client_address>&mtu=1420&persistent-keepalive=25#node_name
+		if sub_other_type == "sing-box" and has_singbox then
+			result.type = "sing-box"
+		elseif sub_other_type == "xray" and has_xray then
+			result.type = "Xray"
+		else
+			log(2, i18n.translatef("Skipping the %s node is due to incompatibility with the %s core program or incorrect node usage type settings.", "WireGuard", "Xray / sing-box"))
+			return nil
+		end
+		result.protocol = "wireguard"
+
+		local alias = ""
+		if content:find("#") then
+			local idx_sp = content:find("#")
+			alias = content:sub(idx_sp + 1, -1)
+			content = content:sub(0, idx_sp - 1)
+		end
+		result.remarks = UrlDecode(alias)
+		local contents = split(content, "@")
+		result.wireguard_secret_key = UrlDecode(contents[1]:gsub("%+", "%%2B"))
+		local query = split(contents[2], "%?")
+		local host_port = query[1]
+		local params = {}
+		for _, v in pairs(split(query[2], '&')) do
+			local s = v:find("=", 1, true)
+			if s and s > 1 then
+				params[UrlDecode(v:sub(1, s - 1)):lower()] = UrlDecode(v:sub(s + 1):gsub("%+", "%%2B"))
+			end
+		end
+		result.address, result.port = parse_host_port(host_port, "51820")
+		result.wireguard_public_key = params.publickey
+		result.wireguard_preSharedKey = params.presharedkey
+		result.wireguard_local_address = {}
+		for value in ((params.address or params.ip or "") .. "," .. (params.ipv6 or "")):gmatch("[^,%s]+") do
+			result.wireguard_local_address[#result.wireguard_local_address + 1] = value
+		end
+		result.wireguard_reserved = params.reserved
+		result.wireguard_mtu = params.mtu or "1420"
+		result.wireguard_keepAlive = params["persistent-keepalive"] or params.keepalive or "0"
+		result.use_finalmask = (params.fm and params.fm ~= "") and "1" or nil
+		result.finalmask = (params.fm and params.fm ~= "") and api.base64Encode(params.fm) or nil
+	elseif szType == "socks" or szType == "socks5" or szType == "socks5h" or szType == "http" or szType == "https" then
+		if sub_other_type == "sing-box" and has_singbox then
+			result.type = "sing-box"
+		elseif sub_other_type == "xray" and has_xray then
+			result.type = "Xray"
+		else
+			log(2, i18n.translatef("Skipping the %s node is due to incompatibility with the %s core program or incorrect node usage type settings.", szType, "Xray / sing-box"))
+			return nil
+		end
+		result.protocol = (szType == "http" or szType == "https") and "http" or "socks"
+
+		local alias = ""
+		if content:find("#") then
+			local idx_sp = content:find("#")
+			alias = content:sub(idx_sp + 1, -1)
+			content = content:sub(0, idx_sp - 1)
+		end
+		result.remarks = UrlDecode(alias)
+		local query = split(content, "%?")
+		local Info = query[1]
+		local base64_auth = false
+		if result.protocol == "socks" and not Info:find("@", 1, true) and not Info:find(":", 1, true) then
+			Info = base64Decode(UrlDecode(Info:gsub("%+", "%%2B")))
+			base64_auth = true
+		end
+		local auth, host_port = Info:match("^(.*)@(.*)$")
+		host_port = host_port or Info
+		auth = auth or ""
+		if result.protocol == "socks" and not auth:find(":", 1, true) then
+			auth = base64Decode(UrlDecode(auth:gsub("%+", "%%2B")))
+			base64_auth = true
+		end
+		local idx = auth:find(":", 1, true)
+		result.username = idx and auth:sub(1, idx - 1) or auth
+		result.password = idx and auth:sub(idx + 1) or ""
+		if not base64_auth then
+			result.username = UrlDecode(result.username:gsub("%+", "%%2B"))
+			result.password = UrlDecode(result.password:gsub("%+", "%%2B"))
+		end
+		local params = {}
+		for _, v in pairs(split(query[2], '&')) do
+			local s = v:find("=", 1, true)
+			if s and s > 1 then
+				params[UrlDecode(v:sub(1, s - 1)):lower()] = UrlDecode(v:sub(s + 1):gsub("%+", "%%2B"))
+			end
+		end
+		local port = result.protocol == "socks" and "1080" or (szType == "https" and "443" or "80")
+		result.address, result.port = parse_host_port(host_port, port)
+		result.transport = result.type == "Xray" and "raw" or "tcp"
+		result.uot = params.uot
+		result.tcp_fast_open = params.tfo
+		result.tls = szType == "https" and "1" or "0"
+		if result.tls == "1" then
+			result.tls_serverName = params.sni
+			result.alpn = params.alpn
+			local insecure = params.allowinsecure or params.insecure or params.allow_insecure
+			result.tls_allowInsecure = (insecure == "1" or insecure == "0") and insecure or (sub_allowinsecure and "1" or "0")
+			result.tls_pinSHA256 = params.pcs
+			result.tls_CertByName = params.vcn
+			if params.fp and params.fp ~= "" then
+				result.utls = "1"
+				result.fingerprint = params.fp
+			end
+			if params.ech and params.ech ~= "" then
+				result.ech = "1"
+				result.ech_config = params.ech
+			end
+		end
+	elseif szType == "masque" then
+		-- masque://<private_key>@<server>:<port>?publickey=<public_key>&address=<addresses>&alpn=h3&sni=<SNI>#name
+		local alias = ""
+		if content:find("#") then
+			local idx_sp = content:find("#")
+			alias = content:sub(idx_sp + 1, -1)
+			content = content:sub(0, idx_sp - 1)
+		end
+		result.remarks = UrlDecode(alias)
+		local query = split(content, "%?")
+		local auth, host_port = query[1]:match("^(.-)@(.*)$")
+		host_port = host_port or query[1]
+		auth = auth or ""
+		local params = {}
+		for _, v in pairs(split(query[2], '&')) do
+			local s = v:find("=", 1, true)
+			if s and s > 1 then
+				params[UrlDecode(v:sub(1, s - 1)):lower()] = UrlDecode(v:sub(s + 1):gsub("%+", "%%2B"))
+			end
+		end
+		local public_key = params.publickey or params['public-key'] or params.public_key
+		local warp = public_key and public_key ~= ""
+		local alpn = params.alpn or params.vhttp or params.network or "h3"
+		local use_xray = warp or alpn == "h2" or (params.fm and params.fm ~= "")
+		if (use_xray or sub_other_type == "xray") and has_xray then
+			result.type = "Xray"
+		elseif not use_xray and sub_other_type == "sing-box" and has_singbox then
+			result.type = "sing-box"
+		else
+			log(2, i18n.translatef("Skipping the %s node is due to incompatibility with the %s core program or incorrect node usage type settings.", szType, "Xray / sing-box"))
+			return nil
+		end
+		result.protocol = "masque"
+		result.address, result.port = parse_host_port(host_port, "443")
+		local idx = auth:find(":", 1, true)
+		result.username = not warp and UrlDecode((idx and auth:sub(1, idx - 1) or auth):gsub("%+", "%%2B")) or nil
+		result.password = not warp and idx and UrlDecode(auth:sub(idx + 1):gsub("%+", "%%2B")) or nil
+		result.masque_path = params.path
+		result.tls_serverName = params.sni
+		result.tls_pinSHA256 = params.pcs
+		if params.ech and params.ech ~= "" then
+			result.ech = "1"
+			result.ech_config = params.ech
+		end
+		local headers = params.headers and jsonParse(params.headers) or {}
+		local lines = {}
+		for key, value in pairs(headers) do
+			if key:lower() == "user-agent" then result.user_agent = value
+			else lines[#lines + 1] = key .. ": " .. value end
+		end
+		result.masque_headers = table.concat(lines, "\\n")
+		if result.type == "Xray" then
+			result.masque_warp = warp and "1" or "0"
+			if warp then
+				local private_key = params.privatekey or params['private-key'] or params.private_key or UrlDecode(auth:gsub("%+", "%%2B"))
+				result.masque_warp_private_key = private_key:gsub("\r\n?", "\n"):gsub("\n", "\\n")
+				result.masque_warp_public_key = public_key:gsub("\r\n?", "\n"):gsub("\n", "\\n")
+				result.masque_warp_address = {}
+				for value in ((params.address or params.ip or "") .. "," .. (params.ipv6 or "")):gmatch("[^,%s]+") do
+					result.masque_warp_address[#result.masque_warp_address + 1] = value
+				end
+			end
+			result.alpn = alpn
+			result.tls_CertByName = params.vcn
+			result.use_finalmask = (params.fm and params.fm ~= "") and "1" or nil
+			result.finalmask = (params.fm and params.fm ~= "") and api.base64Encode(params.fm) or nil
+		else
+			local insecure = params.allowinsecure or params.insecure
+			result.tls_allowInsecure = (insecure == "1" or insecure == "0") and insecure or (sub_allowinsecure and "1" or "0")
+			result.tls_disable_sni = params.disable_sni
+		end
 	else
 		log(2, i18n.translatef("%s type node subscriptions are not currently supported, skip this node.", szType))
 		return nil
@@ -2138,7 +1852,8 @@ end
 local function curl(url, file, ua, mode, hwid)
 	if not url or url == "" then return 22, 404 end
 	local curl_args = {
-		"-fskL", "-w %{http_code}", "--retry 3", "--connect-timeout 3", "-H 'Accept: */*'", "-H 'Accept-Encoding: identity'"
+		"-fskL", "--retry 3", "--connect-timeout 3", "-H 'Accept: */*'", "-H 'Accept-Encoding: identity'",
+		"--dump-header -", "-w '\\n%{http_code}'"
 	}
 	if ua and ua ~= "" and ua ~= "curl" then
 		ua = (ua == "passwall2") and ("passwall2/" .. (api.get_version():match("^([^-]+)") or "")) or ua
@@ -2160,7 +1875,15 @@ local function curl(url, file, ua, mode, hwid)
 	end
 	luci.sys.call('rm -f "%s"' % cookie_file)
 
-	return return_code, tonumber(result)
+	local http_code, headers = 0, ""
+	if result and result ~= "" then
+		local body, code = result:match("^(.-)%s*([0-9]+)$")
+		if code then
+			http_code = tonumber(code) or 0
+			headers = body:gsub("\r", "")
+		end
+	end
+	return return_code, http_code, headers
 end
 
 function get_headers()
@@ -2268,6 +1991,20 @@ local function select_node(nodes, config, parentConfig)
 	end
 	if config.currentNode then
 		local server
+		if parentConfig and not parentConfig.usedNodes then parentConfig.usedNodes = {} end
+		local usedNodes = parentConfig and parentConfig.usedNodes or config.usedNodes
+		local current_id = config.currentNode[".name"] or config.currentNode.Socks
+		-- Exclude candidates already used to replace other old nodes in this list.
+		if usedNodes then
+			local available_nodes = {}
+			for _, node in pairs(nodes) do
+				local used_by = usedNodes[node[".name"]]
+				if not used_by or used_by == current_id then
+					available_nodes[#available_nodes + 1] = node
+				end
+			end
+			nodes = available_nodes
+		end
 		-- Load balancing, keeping the original ID of the Socks [port] node in urltest.
 		if config.currentNode["Socks"] then
 			server = config.currentNode.Socks
@@ -2364,7 +2101,7 @@ local function select_node(nodes, config, parentConfig)
 				end
 			end
 		end
-		if not parentConfig then
+		if not parentConfig and not usedNodes then
 			-- If that doesn't work, just find one.
 			if not server then
 				if #nodes_table > 0 then
@@ -2376,11 +2113,15 @@ local function select_node(nodes, config, parentConfig)
 			end
 		end
 		if server then
+			if usedNodes then usedNodes[server] = current_id end
 			if parentConfig then
 				config.set(parentConfig, server)
 			else
 				config.set(config, server)
 			end
+		elseif usedNodes and config.delete then
+			-- Delete stale HAProxy references when no matching candidates remain.
+			config.delete(config)
 		end
 	else
 		if not parentConfig then
@@ -2389,10 +2130,29 @@ local function select_node(nodes, config, parentConfig)
 	end
 end
 
+-- Write account information only when it changes; commit together with node updates.
+local function update_subscribe_info()
+	local changed = {}
+	for cfgid, info in pairs(subscribe_info) do
+		for key, value in pairs(info) do
+			value = value and value ~= "" and value or nil
+			if uci_get(cfgid, key) ~= value then
+				if value then
+					uci_set(cfgid, key, value)
+				else
+					uci_del(cfgid, key)
+				end
+				changed[cfgid] = true
+			end
+		end
+	end
+	return changed
+end
+
 local function update_node(manual)
 	if next(nodeResult) == nil then
 		log(1, i18n.translatef("No node information updates are available."))
-		return
+		return false
 	end
 
 	local group = {}
@@ -2437,59 +2197,57 @@ local function update_node(manual)
 			chain_node_type = (outbound_iface_group ~= "") and "iface" or chain_node_type
 		end
 		for _, vv in ipairs(list) do
-			local cfgid = uci:section(c_config, "nodes", api.gen_random_char())
-			for kkk, vvv in pairs(vv) do
-				if type(vvv) == "table" and next(vvv) ~= nil then
-					uci_set(cfgid, kkk, vvv)
-				else
-					if kkk ~= "group" or vvv ~= "default" then
-						uci_set(cfgid, kkk, vvv)
-					end
-					-- Sing-Box Node Domain resolver
-					if kkk == "type" and (vvv == "Xray" or vvv == "sing-box") then
-						if domain_resolver then
-							uci_set(cfgid, "domain_resolver", domain_resolver)
-							if domain_resolver_dns then
-								uci_set(cfgid, "domain_resolver_dns", domain_resolver_dns)
-							elseif domain_resolver_dns_https then
-								uci_set(cfgid, "domain_resolver_dns_https", domain_resolver_dns_https)
-							end
-						end
-						if domain_strategy then
-							if vvv == "sing-box" then
-								domain_strategy = (domain_strategy == "UseIPv4" and "ipv4_only") or (domain_strategy == "UseIPv6" and "ipv6_only") or domain_strategy
-							end
-							uci_set(cfgid, "domain_strategy", domain_strategy)
-						end
-					end
-					-- Subscription Group Chain Agent
-					if chain_node_type ~= "" and kkk == "type" and (vvv == "Xray" or vvv == "sing-box") then
-						if preproxy_node_group ~="" then
-							uci_set(cfgid, "chain_proxy", "1")
-							uci_set(cfgid, "preproxy_node", preproxy_node_group)
-						elseif to_node_group ~= "" then
-							uci_set(cfgid, "chain_proxy", "2")
-							uci_set(cfgid, "to_node", to_node_group)
-						elseif outbound_iface_group ~= "" then
-							uci_set(cfgid, "chain_proxy", "3")
-							uci_set(cfgid, "outbound_iface", outbound_iface_group)
-						end
-					end		
+			-- Copy node fields before applying subscription DNS, domain strategy and chain proxy settings.
+			-- Omit the default group; normalize numbers, empty values and lists after all overrides.
+			local values = {}
+			for key, value in pairs(vv) do
+				if key ~= "group" or value ~= "default" then
+					values[key] = value
 				end
 			end
-		end
-	end
-	-- Update subscription information
-	for cfgid, info in pairs(subscribe_info) do
-		for key, value in pairs(info) do
-			if value ~= "" then
-				uci_set(cfgid, key, value)
-			else
-				uci_del(cfgid, key)
+			local node_type = vv.type
+			if node_type == "Xray" or node_type == "sing-box" then
+				-- Node domain resolution for sing-box and Xray.
+				if domain_resolver and domain_resolver ~= "" and domain_resolver ~= "disable" then
+					values.domain_resolver = domain_resolver
+					if domain_resolver == "https" and domain_resolver_dns_https then
+						values.domain_resolver_dns_https = domain_resolver_dns_https
+					elseif (domain_resolver == "udp" or domain_resolver == "tcp") and domain_resolver_dns then
+						values.domain_resolver_dns = domain_resolver_dns
+					end
+				end
+				if domain_strategy then
+					local ds = domain_strategy
+					if node_type == "sing-box" then
+						local map = { UseIPv4 = "ipv4_only", UseIPv6 = "ipv6_only" }
+						ds = map[ds] or ""
+					end
+					values.domain_strategy = ds
+				end
+				-- Subscription group chain proxy.
+				if chain_node_type ~= "" then
+					if preproxy_node_group ~="" then
+						values.chain_proxy = "1"
+						values.preproxy_node = preproxy_node_group
+					elseif to_node_group ~= "" then
+						values.chain_proxy = "2"
+						values.to_node = to_node_group
+					elseif outbound_iface_group ~= "" then
+						values.chain_proxy = "3"
+						values.outbound_iface = outbound_iface_group
+					end
+				end
 			end
+			-- Match uci_set: stringify numbers, omit empty strings and lists, and preserve nonempty lists.
+			-- Filter after overrides so empty subscription settings can clear matching node fields.
+			for key, value in pairs(values) do
+				if type(value) == "number" then value = value .. "" end
+				values[key] = #value > 0 and value or nil
+			end
+			-- Create each node with one values table; both ubus and native UCI support this interface.
+			uci:section(c_config, "nodes", api.gen_random_char(), values)
 		end
 	end
-
 	if next(CONFIG) then
 		local nodes = {}
 		uci_foreach("nodes", function(node)
@@ -2514,9 +2272,7 @@ local function update_node(manual)
 		end
 	end
 
-	uci_save(true)
-
-	if manual ~= 1 then restart_required = true end
+	return true
 end
 
 local function parse_link(raw, add_mode, group, sub_cfg)
@@ -2526,7 +2282,7 @@ local function parse_link(raw, add_mode, group, sub_cfg)
 			cfgid = sub_cfg[".name"]
 		end
 		local keyword_filter = add_mode == "2" and prepare_keyword_filter(sub_cfg)
-		local nodes, szType, clashTable
+		local nodes, szType
 		local node_list = {}
 		-- ssd appear to be in this format, starting with ssd://.
 		if raw:find('ssd://') then
@@ -2547,19 +2303,11 @@ local function parse_link(raw, add_mode, group, sub_cfg)
 			end
 			nodes = servers
 		else
-			-- Try parseYAML, if success, is clash.
-			local yamlTable = lyaml.load(raw)
-			if yamlTable and type(yamlTable) == "table" then
-				-- clash
-				szType = "clash"
-				clashTable = yamlTable
+			-- Formats other than SSD are handled by the existing URI parser.
+			if add_mode == "1" then
+				nodes = split(raw, "\n")
 			else
-				-- Formats other than ssd
-				if add_mode == "1" then
-					nodes = split(raw, "\n")
-				else
-					nodes = split(base64Decode(raw):gsub("\r\n", "\n"), "\n")
-				end
+				nodes = split(base64Decode(raw):gsub("\r\n", "\n"), "\n")
 			end
 		end
 
@@ -2575,17 +2323,9 @@ local function parse_link(raw, add_mode, group, sub_cfg)
 				else
 					tinsert(node_list, node)
 				end
-				if add_mode == "2" then
+				if add_mode == "2" and not subscribe_info_from_headers[cfgid] then
 					get_subscribe_info(cfgid, node.remarks)
 				end
-			end
-		end
-
-		if szType == "clash" and clashTable then
-			nodes = {}
-			local clashNodes = processClashData(clashTable, add_mode, group, sub_cfg)
-			for _, v in ipairs(clashNodes) do
-				nodeFilter(v)
 			end
 		end
 
@@ -2619,7 +2359,7 @@ local function parse_link(raw, add_mode, group, sub_cfg)
 			)
 			end
 		end
-		if #node_list > 0 then
+		if add_mode ~= "2" and #node_list > 0 then
 			nodeResult[#nodeResult + 1] = {
 				remark = group,
 				list = node_list,
@@ -2627,10 +2367,12 @@ local function parse_link(raw, add_mode, group, sub_cfg)
 			}
 		end
 		log(2, i18n.translatef("Successfully resolved the [%s] node, number: %s", group, #node_list))
+		return node_list
 	else
 		if add_mode == "2" then
 			log(2, i18n.translatef("Get subscription content for [%s] is empty. This may be due to an invalid subscription address or a network problem. Please diagnose the issue!", group))
 		end
+		return {}
 	end
 end
 
@@ -2654,6 +2396,7 @@ local execute = function()
 			local cfgid = value[".name"]
 			local remark = value.remark or ""
 			local url = value.url or ""
+			local headers
 
 			local url_is_local
 			if fs.access(url) then
@@ -2668,7 +2411,7 @@ local execute = function()
 				log(1, i18n.translatef("Start subscribing: %s", '【' .. remark .. '】' .. url .. ' [' .. result .. ']'))
 				tmp_file = "/tmp/" .. cfgid
 				local return_code
-				return_code, value.http_code = curl(url, tmp_file, ua, access_mode, value.hwid)
+				return_code, value.http_code, headers = curl(url, tmp_file, ua, access_mode, value.hwid)
 				if return_code ~= 0 then
 					fail_list[#fail_list + 1] = value
 					luci.sys.call("rm -f " .. tmp_file)
@@ -2680,13 +2423,59 @@ local execute = function()
 					local stdout = f:read("*all")
 					f:close()
 					local raw_data = api.trim(stdout)
+					local auto_dns = value.domain_resolver == nil or value.domain_resolver == ""
+					local resolver
+					raw_data, resolver = parseClashNode(raw_data, remark, auto_dns)
+					if auto_dns and resolver then
+						-- Only enrich this run's sub_cfg; keep the subscription's Auto setting.
+						value.domain_resolver = resolver.domain_resolver
+						value.domain_resolver_dns = resolver.domain_resolver_dns
+						value.domain_resolver_dns_https = resolver.domain_resolver_dns_https
+					end
+					if headers and headers ~= "" then
+						local info = parse_clash_sub_info(headers)
+						if info then
+							-- Response-header account data takes precedence over node remarks.
+							subscribe_info[cfgid] = info
+							subscribe_info_from_headers[cfgid] = true
+						end
+					end
+					-- Buffer parsing details until the parsed nodes are known to have changed.
+					log_buffer = {}
+					local parsed_nodes = parse_link(raw_data, "2", remark, value)
+					if auto_dns and resolver and resolver.nodes then
+						for _, node in ipairs(parsed_nodes) do
+							local dns = resolver.nodes[node.address:lower():gsub("%.$", "")]
+							if dns and (node.type == "Xray" or node.type == "sing-box") then
+								node.domain_resolver = dns.domain_resolver
+								node.domain_resolver_dns = dns.domain_resolver_dns
+								node.domain_resolver_dns_https = dns.domain_resolver_dns_https
+							end
+						end
+					end
 					local old_md5 = value.md5 or ""
-					local new_md5 = luci.sys.exec("md5sum " .. tmp_file .. " 2>/dev/null | awk '{printf \"%s\", $1}'")
-					if not manual_sub and old_md5 == new_md5 then
+					local md5_content = jsonStringify(parsed_nodes)
+					if value.domain_resolver and value.domain_resolver ~= "" and value.domain_resolver ~= "disable" then
+						local protocol = value.domain_resolver
+						local dns = (protocol == "udp" or protocol == "tcp") and value.domain_resolver_dns or ""
+						local doh = protocol == "https" and value.domain_resolver_dns_https or ""
+						md5_content = md5_content .. jsonStringify({protocol, dns or "", doh or ""})
+					end
+					local new_md5 = #parsed_nodes > 0 and api.md5_string(md5_content) or ""
+					-- Skip rewriting nodes only when both nodes and effective DNS are unchanged.
+					if not manual_sub and new_md5 ~= "" and old_md5 == new_md5 then
+						log_buffer = nil
 						log(1, i18n.translatef("Subscription: [%s] No changes, no update required.", remark))
 					else
-						parse_link(raw_data, "2", remark, value)
-						uci_set(cfgid, "md5", new_md5)
+						flush_log_buffer()
+						if #parsed_nodes > 0 then
+							nodeResult[#nodeResult + 1] = {
+								remark = remark,
+								list = parsed_nodes,
+								sub_cfg = value,
+								md5 = new_md5
+							}
+						end
 					end
 				else
 					fail_list[#fail_list + 1] = value
@@ -2704,13 +2493,28 @@ local execute = function()
 				log(1, i18n.translatef("[%s] Subscription failed. This could be due to an invalid subscription address or a network issue. Please diagnose the problem! [%s]", value.remark, tostring(value.http_code)))
 			end
 		end
-		update_node(0)
+		local nodes_changed = update_node(0)
+		local info_changed = update_subscribe_info()
+		-- Save nodes, references and their MD5 in the same commit.
+		for _, result in ipairs(nodeResult) do
+			uci_set(result.sub_cfg[".name"], "md5", result.md5)
+		end
+		if nodes_changed or next(info_changed) then
+			uci_save(true)
+			restart_required = nodes_changed
+			for _, value in ipairs(subscribe_list) do
+				if info_changed[value[".name"]] then
+					log(1, i18n.translatef("Refresh subscription [%s] account usage and expiration information.", value.remark or ""))
+				end
+			end
+		end
 	end
 end
 
 if arg[1] == "start" then
 	log(0, i18n.translate("Start subscribing..."))
 	xpcall(execute, function(e)
+		flush_log_buffer()
 		log(1, e)
 		if type(debug) == "table" and type(debug.traceback) == "function" then
 			log(1, debug.traceback())
@@ -2722,8 +2526,9 @@ elseif arg[1] == "add" then
 	local f = assert(io.open("/tmp/links.conf", 'r'))
 	local raw = f:read('*all')
 	f:close()
+	raw = parseClashNode(raw, arg[2])
 	parse_link(raw, "1", arg[2])
-	update_node(1)
+	if update_node(1) then uci_save(true) end
 	luci.sys.call("rm -f /tmp/links.conf")
 elseif arg[1] == "truncate" then
 	truncate_nodes(arg[2])
