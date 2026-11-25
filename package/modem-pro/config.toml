@@ -1,0 +1,311 @@
+[server]
+# Web 界面（设备中心）监听地址。**改完必须重启服务**：/etc/init.d/modemd restart
+# 默认使用 HTTP，设备中心的 LuCI 登录仍启用。
+listen = "0.0.0.0:9527"
+tls_enabled = false
+# HTTPS 开启并留空证书路径时，首次启动自动生成 /etc/modemd/modemd-tls.pem。
+# 可在首次生成前补充访问时使用的 IP 或主机名。
+# tls_names = ["192.168.1.1", "openfi.lan"]
+# tls_cert_file = "/etc/modemd/server.crt"
+# tls_key_file = "/etc/modemd/server.key"
+# 后台热插拔巡检间隔（秒）。**插拔自动检测就靠它**。
+# 0 = 不启用后台周期任务，只在启动时发现一次模组（之后插上的模组不会被发现；
+#     页面的「刷新模组」只读缓存、不重探串口，只能自己调 GET /api/modems?discover=1）。
+# 这里给了 3（插拔更跟手）。代价很小：每轮只是枚举串口 + 比对指纹，
+# 只有**新出现**的端口 / 到达重探时刻的端口才会真的发 AT 探测；
+# 被否定的口按端口指数退避重探（10s / 20s / 40s… 封顶 5 分钟），不会每轮都白等探测超时。
+# ⚠️ 巡检期间持有模组锁，太小的值遇到“慢口”会把界面拖住，一般 1~5 即可。
+scan_interval = 3
+# WebSocket 信号推送间隔（秒）；网络/运营商状态使用下面独立的 network_interval。
+# 0 = 只推事件（新短信 / 热插拔 / 扫描完成 / 锁网变更）。没人连 /ws 时不会发任何 AT 指令。
+push_interval = 1
+# 网络制式/运营商状态查询间隔（秒）。
+network_interval = 3
+# 上行/下行速度的采样推送间隔（秒），默认 1。速度由流量计数器差分得出，
+# 单独走更短的节拍以免受 push_interval 影响。
+traffic_interval = 1
+# 波动记录（网络/信号变化时间线）的后台采样间隔（秒），默认 0 = 关闭。
+# 默认只在“有人在看”时用已有查询顺手记录；设 > 0 后即使没连推送也会按该间隔
+# 采样并记录（信号每轮、网络每 3 轮）——代价是后台会持续发 AT 指令。
+# 只在内存里保留最近 500 条，重启即清空。
+change_interval = 0
+pid_file = "/var/run/modemd.pid"
+log_file = "/var/log/modemd.log"
+log_level = "info"
+auto_detect_vendor = true # 开启自动识别模组厂商
+
+[serial]
+baud = 115200
+at_probe_timeout = "4s"
+cmd_timeout = "3s"
+read_stuck_threshold = "30s"
+# USB 设备刚被枚举出来后的**预热等待**。做法：设备一出现**先探一次**
+# （已就绪的模组立刻发现）；这次失败的话，预热期内每 15s 再探一次，出了预热期转指数退避。
+# 5G 模组内部是台小 Linux，要 1~2 分钟才把 AT 守护进程拉起来。
+# 默认 "90s"（不写 / 写 "0s" 都用默认值）；写负值（如 "-1s"）才是不等待（旧行为）。
+probe_warmup = "90s"
+# 插上的已知模组如果一个串口都没交出来（OpenWrt 上常见：内核 option 驱动不认识它），
+# 是否自动 modprobe option 并写 new_id 把 /dev/ttyUSB* 补出来。默认 true。
+# ⚠️ 只在 Linux/OpenWrt 生效（Windows 的串口由驱动 inf 决定，做不到自动绑定）。
+usb_autobind = true
+
+[sms]
+send_queue_size = 16
+sms_memory = "SM"
+
+[sim]
+# SIM 热插拔（模组带电拔卡 / 插卡 / 换卡；实现见 module/kernel/simhotswap.go）。
+#   hotswap_interval  兜底轮询间隔。拔卡/插卡时模组一般会主动上报 `+CPIN:`，那种情况**立刻**处理，
+#                     不用等这个周期；这条只是兜住“悄悄换了卡、却不发 URC”的固件。写 "0s" = 关掉检查。
+#   hotswap_reset     确认换了**另一张卡**后发一次 AT+CFUN=1,1 让新卡生效。
+#                     默认 false（只探测/提示，不动模组）：复位会让模组重新枚举、掉线重连好几分钟，
+#                     一旦误判就是"模块反复出不来"（2026-10-01 真机事故）。
+#                     确实需要复位才能让新卡生效的模组（很多没做 SIM 热插拔硬件）自己改成 true。
+#                     ⚠️ 程序只在 **ICCID/IMSI 真的变了** 时才认为换卡；拔卡/插卡/读卡抖动都不会复位。
+# 检出后还会重配一次“按卡”的短信设置（存储区 CPMS + 新短信上报 CNMI），
+# 并清掉缓存的 ICCID/IMSI/本机号码，界面上下次一读就是新卡。
+hotswap_interval = "20s"
+hotswap_reset = false
+
+[net]
+
+# 拨号前先把模组“飞行模式 → AT+CFUN=1,1”复位一次（用户 2026-10-13 要求；默认开）。
+# FM160-CN 这类模组不复位时“拨上几十秒就发不出去”（TX 涨、RX 为 0，且内核不报 watchdog），
+# 复位后能一次拨通并长时间稳定。模组重启要 40~90 秒，所以用 cooldown 节流。
+# reset_before_dial = true
+# reset_before_dial_cooldown = 300
+# 模组上线自动组网（**OpenWrt 专用**，见 netprov.go）：
+#   ① 模组一插上就自动做“模组侧拨号”（写 APN → 激活 PDP）；
+#   ② 看**这个模组的网卡**在 UCI 里有没有对应接口，没有就自动建一个 WAN 接口
+#      + 加进防火墙的 wan 区。**接口形态由下面的 wan_mode 决定**（2026-10-13 起）：
+#        modem_pro（默认）→ 一张接口 modem<N>（proto=modem_pro），IPv4+IPv6 都跑 在上面
+#        dhcp            → 两张：modem<N>(dhcp) + modem<N>_6(dhcpv6)
+#        both            → 两种都要：modem<N>(modem_pro) + modem<N>_6(dhcpv6)
+#      ★ 默认模式下 **qmi / ecm / ncm / rndis / mbim / 未知类型 一律用 modem_pro**
+#        （旧版只有一个 case "qmi"，其它类型都落在 dhcp 上、再被配上 modem<N>_6 ——
+#         用户看到的就是"只有 qmi 会切成一张，其它都是两个接口"）。
+#      ★ MBIM 也不再例外（用户 2026-10-13）：它的会话建立改由 modemd 托管的 quectel-CM 做
+#        （只有它实现了 MBIM；fibocom-dial / simcom-cm 源码里压根没有，meig-cm 有文件没接上），
+#        接口就跟其它类型一样是一张 modem<N>。
+#      ⚠️ 只有把下面的 host_dial 关掉时，MBIM 才会退回 proto=mbim
+#        （那时没人拨号，只能靠 netifd 的 mbim.sh / umbim）。
+# 不做这些，新插上的模组拿不到地址、上不了网（每次都要去 LuCI 手工建接口）。
+# 默认 true；只在 Linux/OpenWrt 上真正动手，Windows / 桌面 Linux 上是空操作。
+# ⚠️ 同名接口已存在就**不动它**（手工配置优先），只在真没有时才建。
+# OpenFi 6C delegates modem WAN provisioning to modemd.
+auto_wan = true
+# 接口模式（[net] wan_mode，2026-10-13 新增）。三种取值：
+#   "modem_pro"（**默认**）—— 只用一张接口（proto=modem_pro），IPv4+IPv6 都在它上面。
+#                           IPv6 前缀自动跟随上联（RFC 7278），不用 modemd 再写 ip6prefix。
+#   "dhcp"                —— 传统两张：modem<N>(proto=dhcp) + modem<N>_6(proto=dhcpv6)。
+#                           QMI 的数据呼叫仍由主机侧拨号器做（见下面的 host_dial）。
+#   "both"                —— 两种都要：modem<N>(modem_pro) + modem<N>_6(dhcpv6)。
+# ★ 三种模式下 **qmi / ecm / ncm / rndis / mbim / 未知类型 一律 modem_pro**（不再只认 QMI，
+#   也不再有 MBIM 例外 —— MBIM 的会话建立改由 modemd 托管的 quectel-CM 做，见下面 host_dial）。
+# 认不出的值（含不写这一项）一律按 modem_pro 处理，配置写错不会让网络换形态。
+# 切换后由组网循环（≤15 秒一轮）就地生效：改主接口的 proto、按需补/删 modem<N>_6，
+# 并同步 /etc/firewall.user 里那段 v6 规则（模式 modem_pro 下整段收掉，
+# 不会留下上一个模式的残规则 —— 这就是"防火墙也要按模式区分"）。
+# 页面上也能改：「拨号上网」卡片右上角的「模式」下拉。
+wan_mode = "dhcp"
+# 自动“模组侧拨号”。写 APN → 激活 PDP（模组那一端就绪）。
+# ⚠️ QMI / MBIM 模组（接口 proto=modem_pro / dhcp）**不靠它上网**，而且 modemd 会**主动跳过它**：
+#    那种模组的数据通道由主机侧拨号器（见 host_dial）建，而模组只有**一个数据承载** ——
+#    AT 侧再激活一个上下文会把承载占住，拨号器随后请求数据呼叫就被拒
+#    （实测 RM502Q-GL：拨号器每轮 `QMUXError 0xe`、`wwan0 link_state 0`、接口拿不到地址；
+#      FM160-CN MBIM：`MBIM_CID_CONNECT` 回 `Status=2 FAILURE`、ActivationState 一直是 Deactivated）。
+#    所以这两类上这个开关不生效（只影响 ECM / NCM / RNDIS 的模组侧激活），
+#    并且 modemd 会把自己之前激活的数据上下文停掉，让拨号器独占。
+#    同理，「可写参数」页写 APN 后**不自动激活 PDP**（只写配置）、手动「激活 PDP」会被拒——
+#    承载得留给拨号器；要上网请用「拨号上网」，拨号器会把 IPv4/IPv6 一起建好。
+auto_dial = true
+# QMI 的主机侧拨号器由 modemd 自己托管（默认开）：
+#   modemd 每轮组网循环把它拉起、看着、退出自动重试；模组拔了/手动断开就停掉；
+#   进程退出前按进程组一起收（连它起的 busybox udhcpc 一起），不留占着控制口的尾巴。
+# 关掉就只剩一张什么都不拨的空接口（除非你自己有别的拨号器）。
+host_dial = true
+# 拨号器可执行文件。留空 = 按模组厂商自动找（**四家各一份，不能互相顶替**）：
+#   移远 Quectel（EC20/RM500 等）      → quectel-CM   （源码 files/third_party/quectel-cm）
+#   广和通 Fibocom（FM150/FM350/FM650）→ fibocom-dial （源码 files/third_party/fibocom-dial）
+#   美格 MeiG（SRM815/SLM750）         → meig-cm      （源码 files/third_party/meig-cm）
+#   芯讯通 SIMCom（SIM7600/SIM8200）   → simcom-cm    （源码 files/third_party/simcom-cm/src）
+#   未识别 / 其它                      → quectel-CM
+# ★ **MBIM 一律用 quectel-CM（不管模组是哪家）**：只有它实现了 MBIM 那套
+#   （mbim-cm.c + SOFTWARE_MBIM；fibocom-dial / simcom-cm 里压根没有，meig-cm 有文件但没接上），
+#   而它认 MBIM 靠的是**标准 USB CDC 描述符**（与厂商无关）。
+#   ⚠️ MBIM 模式下 quectel-CM **必须有 APN**（没 `-s` 会直接 exit(-404)）；
+#      APN 取模组的 AT+CGDCONT?，或页面「拨号上网」里配过的那个。
+# 都先看 /usr/lib/modemd/，再看 /usr/bin、/usr/sbin。
+# ⚠️ QMAP 模组（移远 + 厂家 qmi_wwan_q，qmap_mode=1）会同时出现两张网卡：
+#    wwan0   父口（没有 IP）→ 拨号器的 -i、驱动属性
+#    wwan0_1 mux 数据口（地址在它上面）→ UCI 接口 modem<N>.device、netifd 的 DHCP、IPv6
+#    modemd 会自动分开处理（见 README「QMAP 模组」一节），不用手工配。
+# ⚠️ 拿别家的拨号器顶：真机实测 SIMCom 模组用 quectel-CM 会报 QMIType 11 has no
+#    clientID / QMUXError 0xe（那是高通/移远才有的 WDA 服务），拨不起来。
+#    四个拨号器都随包装在 /usr/lib/modemd/；想换成厂商自己给的更新版本，覆盖同路径或用
+#    这里指过去即可，不用重启（下一轮组网循环就会用新的）。
+# 指向不存在的路径会直接在页面/日志里报错（不会静默退回别的）。
+host_dial_bin = ""
+# 给厂家拨号器传的 `-n <pdn>`（QMAP 模组的 PDN / mux 序号）。默认 0 = 自动。
+#   0  自动：先按**数据网卡名**反推（wwan0_1 → 1）；反推不到、但驱动是 QMAP 模式
+#      （/sys/class/net/<网卡>/qmap_mode = 1，厂家 qmi_wwan_q / qmi_wwan_f）时按默认承载传 1。
+#      实测 FM160-CN + qmi_wwan_f：不传它拨号器一直不 add_mux，父口 wwan0 永远 NO-CARRIER、
+#      没地址（netifd 的 DHCP 也拿不到）；传上 -n 1 立刻 link:1 并读回 IPv4 地址。
+#   >0 强制用这个序号（比如 APN 配在 cid 3 上就写 3）。
+#   -1 永不传 -n（老行为：只按网卡名反推）。
+# 只影响 QMI 的厂家拨号器（quectel-CM / fibocom-dial / meig-cm）；simcom-cm 不认这个参数。
+host_dial_pdn = 0
+# 模组这一侧要不要用 IPv6（默认 true；页面上「拨号上网」那个开关写的就是它）。
+# 关掉 = 只走 IPv4：QMI / MBIM 不给拨号器加 -6、所有协议都不再建（并删掉已建的）
+# modem<id>_6 那张 dhcpv6 兄弟接口。打开时按各协议本来的做法走。
+# ⚠️ QMI / MBIM 也默认建这张 v6 兄弟接口（老行为）：wwan0 上的 v4/v6 地址、路由、DNS 其实都是
+#    主机侧拨号器给的，但 netifd / 局域网侧那几项 v6 对账（把模组 /64 写进 ip6prefix
+#    交给内网、LAN 的 v6 行路）都假定有这么一张 v6 上联；不想让 netifd 再碰这张网卡
+#    就把下面的 qmi_v6_sibling 改成 false。
+#    （只有 host_dial 关着、MBIM 退回 proto=mbim 时才真的不建 —— umbim 在同一张接口上就配好 v4+v6。）
+wan_ipv6 = true
+# QMI（主机侧拨号器）模式还要不要另建 modem<id>_6（proto=dhcpv6，绑同一张 wwan0）。
+# 默认 true = 老行为（建）；改成 false = 一张都不建、已经建过的会被收掉。
+qmi_v6_sibling = true
+# 自动建的 WAN 接口的默认路由 metric（越小越优先）。
+# 默认 20：路由器本来就有 WAN 时不会被模组抢走默认路由；想让模组优先就改小（如 5）。
+# ⚠️ QMI 的接口虽然是 proto=dhcp（netifd 会按这里的值装路由），但**拨号器自己也会装一条**：
+#    它内部的 busybox udhcpc 用 /usr/share/udhcpc/default.script 装了
+#    `route add default gw ... dev wwan0`（**没有 metric**，= 0），会跟路由器自己的上联 WAN 抢。
+#    所以 modemd 在拨号器起来后会把这个网卡上默认路由的 metric 对齐成这里的值。
+#    设成 0 = 完全不干预。
+wan_metric = 20
+# 把新接口加进哪个防火墙区；找不到这个区就只建接口、不动防火墙（不瞎猜分区）。
+wan_zone = "wan"
+# QMI 类模组的 netifd 接口（modem<id>）用哪个 proto。
+#
+# 口径（2026-10-09）：**QMI 就用 dhcp** —— 地址/路由/DNS 由 netifd 的 udhcpc 取，
+# 数据呼叫由 modemd 托管的厂商拨号器拉起来。
+# ⚠️ 中间试过“拿不到租约就自动降级成 none”，**已经去掉**：
+#    none 会让 netifd 完全不跑协议，链路上就算有 DHCP 服务也拿不到地址 = 自己把上网掐掉。
+#
+#   "" / "auto"（默认）：dhcp。旧版自己建的 qmi / quectel / none 会就地迁回 dhcp。
+#   "dhcp"：同上（显式写法）。
+#   "none"：显式要求不跑协议 —— 地址/路由全靠主机侧拨号器或手工配置（明确知道自己在干什么再用）。
+qmi_proto = "auto"
+# 把模组拿到的 IPv6 前缀交给内网（默认 true）。
+# 模组（尤其 NCM/ECM）往往只在链路上发一个 /64（RA/SLAAC）、**不做前缀委派（PD）**，
+# 这时 netifd 不知道能往内网发哪个前缀，内网设备就只有 ULA（上不了 IPv6 外网）。
+# 做法是把那个 /64 写进上联接口的 ip6prefix —— 实测内网立刻拿到全局地址并能出公网。
+# 不想让内网走模组的 IPv6（比如另用隧道）就改成 false。
+lan_ipv6 = true
+
+# 需要"特别处理 IPv6"的模组型号关键字名单（**只对这些型号生效，名单外的模组一个字都不写**）。
+#
+# 名单里的模组会额外做四件事（都是为了解决"模组只给 on-link 的 RA /64、不做前缀委派"那类机型）：
+#   ① dhcpv6 选项用 auto=1 + hostname + extendprefix=1 + extend_prefix=1（不带 ip6prefix/reqaddress）；
+#   ② 写 /etc/firewall.user 里一段（DNS 重定向 + 每张网卡一条 IPv6 MASQUERADE）；
+#   ③ 写 route6 modemd_lan6route（把模组的 /64 以低 metric 钉在 LAN 上，回程才不会走去模组）；
+#   ④ 配 odhcpd 的 NDP relay（内网设备的公网回包要路由器替它应答 NS）。
+#
+# ★ 2026-10-13（用户要求）：**判据不再是"型号白名单"** —— 改成按**链路类型**自动判：
+#   ECM / NCM / RNDIS（模组桥出一张以太网卡、主机自己跑 DHCP/RA 的那几类）**全都**做上面四件。
+#   理由（真机实测）：FM160-CN 切到 ECM（USB 2cb7:0105）后 IPv6 就是不通 —— 上游只发 RA、
+#   不做 DHCPv6-PD，内网那个 /64 必须靠 ③ 的低 metric 路由 + ④ 的 NDP relay 才回得来。
+#   QMI 不需要这套（数据面归主机侧拨号器、前缀走 PDN 正常路由）。
+# ⚠️ 名单外的模组仍然**不做**这四件。
+# 现在**默认留空**即可（按链路类型自动判，见上）。只有当你遇到某个**类型判不出来**
+# 却也要这套的型号时，才往这里写一行（匹配忽略 空格/-/_/.，只看型号关键字）。
+v6_fix_models = []
+
+# 额外需要"把模组的 /64 钉在 LAN（低 metric route6）+ 配 odhcpd NDP relay"的型号关键字。
+#
+# 为什么需要：只要模组的 /64 也被发给了内网（写 ip6prefix 的机型都这样），内核里就有两条同前缀路由
+#   240e:…::/64 dev wwan0  metric 256     ← 上游（模组）
+#   240e:…::/64 dev br-lan metric 1024    ← LAN 分配
+# 同前缀按 metric 选路 ⇒ 回给内网设备的包被送去模组、直接消失。症状：IPv6 能用但**有时那一次不行**，
+# Windows 上那句「IPv6 连接：无 Internet 访问权限」。⚠️ 这一项跟 ECM/QMI 无关，QMI 机型也要。
+#
+# 留空 = 跟 v6_fix_models 同一份名单；而两项都留空时 = 按链路类型自动判（见上）。
+#
+# ★ 2026-10-13：**fm160 也加进来** —— FM160-CN 切到 ECM 模式（USB 2cb7:0105）后，
+#   模组只在上游发 RA/SLAAC、不做 DHCPv6-PD，内网拿到的那个 /64 需要：
+#     ① LAN 上一条 metric 100 的路由（否则同前缀有 usb0 的 metric 256，回包被丢给模组 ⇒
+#        "地址都在就是访问不了"）；② odhcpd 的 NDP relay（否则公网回包到不了内网）。
+#   实测（H29K + FM160-CN ECM）：加上之后 `ip -6 route get <内网设备>` 走 br-lan、
+#   ping6 内网 0% 丢包、HTTP6=200。
+# 发现哪个型号也这样，把关键字加进来即可（匹配忽略 空格/-/_/.）。
+lan6_fix_models = []
+
+
+[dial]
+# 拨号 / 写 APN 之后的自动激活行为（实现见 module/kernel/pdp_ims.go）。
+#   activate_ims  写完 APN（自动重新激活那个 cid 的同时）与拨号成功后，
+#                 是否顺手把模组的 **IMS 上下文**（APN = ims，一般是 cid 1）也激活起来。
+#                 它是 VoLTE / 走 IMS 的短信（5G SA 下常见）的前提，而不少卡/固件出厂时
+#                 IMS 是**未激活**的，不给手动启动就一直起不来。
+#                 默认 true（不写也算开）；要关就显式写 false。
+#                 ⚠️ IMS 激活失败**不影响**拨号/写入结果（实测 FM350 直接回 ERROR：该固件
+#                 不许手动激活 IMS），只在拨号步骤与日志里如实记一条。
+activate_ims = true
+
+[modem]
+enable_nr_signal = true
+tty_per_modem = 4 # 每个模组占用的 ttyUSB 端口数；0=按连续编号分组
+
+[ui]
+# 短信访问密码：进「短信」页 / 调短信接口都要它（默认就是 password）。
+#   sms_password = ""            -> 不启用密码校验
+#   sms_password_required = false  -> 同样关掉密码校验
+# ⚠️ 外层登录（下面 require_luci_login）开着时这一层**自动停用**：能调接口的人
+#    本来就已经登录过路由器账号了，再要一道短信密码是重复保护（配置仍保留，
+#    把外层登录关掉就重新生效）。
+# 也可以在切「短信」页解锁后直接改（会写回本文件，不用重启；见 module/config/config.go）。
+sms_password_required = true
+sms_password = "password"
+
+# 是否要求「先登录路由器管理员账号」才给调接口（设备中心 / 小窗 / 脚本都算）。
+#
+# 做法（与路由器**同一套账号密码、同一个会话表**，见 module/luciauth/luciauth.go）：
+#   未登录时页面顶部弹登录框（默认用户名 root），密码交给 rpcd 验（`session login`，
+#   LuCI 登录走的就是同一条路），拿到的会话 ID 存在 modemd_sess cookie 里；
+#   之后每个请求拿它去问 rpcd（`session get`）。
+#   ⇒ 在 LuCI 里退出、或会话超时，这边立刻一起失效（最多少看一眼 15 秒的校验缓存）。
+#
+# ⚠️ 为什么不是直接拿 LuCI 的 cookie：真机（OpenWrt 25.12 / LuCI ucode）发的
+#    `sysauth_http` 带 **path=/cgi-bin/luci/**（+ SameSite=strict + HttpOnly）
+#    ⇒ 浏览器**不会**把它带到本页面端口，所以必须由我们自己发会话。
+#
+# 默认 **true（开）**，而且配置文件里**没有这一行**也算开（老版本升级上来的机器就是这样：
+# config.toml 是 conffile，升级包不会覆盖它，所以新加的键永远不出现 —— 用户 2026-10-06
+# 定的口径就是「默认打开，没有配置也是打开」）。要关只有两种写法：
+#   · LuCI「服务控制」页的「接口登录保护」开关（**推荐**：会写回这一行并重启服务）；
+#   · 手动把这一行改成 false（改完重启服务）。
+# 开启后：
+#   · 静态页面 / /api/version / /api/session / /api/login / /api/logout 仍放行
+#     （否则连登录都做不了；登录接口靠限流挡暴力猜密码：同 IP 60 秒 5 次）；
+#   · 受保护接口（包括本机请求）要求有效会话。
+#   · ubus 缺失、超时或应答异常时拒绝访问。
+#   · 上面那层短信密码**自动停用**（能调接口的人本来就已经登录过路由器账号了）。
+require_luci_login = true
+
+# ubus 的 HTTP JSON-RPC 端点：登录/退出用它（**密码走请求体，不会出现在 ps 里**）。
+# 留空 = 默认 "http://127.0.0.1/ubus"（= uhttpd 的 ubus_prefix）；
+# uhttpd 改过监听端口或前缀就在这里写全。HTTP 仅支持回环 IP，其他地址必须用 HTTPS。
+# ubus_http = "http://127.0.0.1/ubus"
+
+[wechat]
+# 微信机器人（腾讯 iLink Bot）：收到新短信转发到微信。
+# 在页面上扫码登录（短信页 → 微信机器人 → 扫码登录），凭据会自动写回下面两行；
+# 也可以把别处已经登录好的 bot_token / bot_id 直接填进来（格式同官方 SDK）。
+#   enabled  打开后：收到新短信就推送（开关也在页面上）
+#   to_user_id  推送目标（形如 xxxx@im.wechat）；留空则用「最近给机器人发过消息的人」
+#   template  消息模板，占位符：{modem} {number} {time} {content} {parts}
+#   listen  是否长轮询收“微信发给机器人的消息”（用来学推送目标）
+#   allowed_senders  只接受这些发送者（逗号分隔子串，留空 = 不限制）
+# ⚠️ 这个段比短信本身还敏感：能改推送目标就能把短信转发到任意微信，
+#    所以相关接口都要过短信密码闸门。
+enabled = false
+base_url = "https://ilinkai.weixin.qq.com"
+bot_token = ""
+bot_id = ""
+bot_user_id = ""
+to_user_id = ""
+template = "📩 新短信{parts}\n模组：{modem}\n号码：{number}\n时间：{time}\n内容：{content}"
+listen = true
+allowed_senders = ""

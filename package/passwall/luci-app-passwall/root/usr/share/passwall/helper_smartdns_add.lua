@@ -58,12 +58,10 @@ local function log(...)
 end
 
 local function is_file_nonzero(path)
-	if path and #path > 1 then
-		if sys.exec('[ -s "%s" ] && echo -n 1' % path) == "1" then
-			return true
-		end
+	if path and #path > 1 and (fs.stat(path, "size") or 0) > 0 then
+		return true
 	end
-	return nil
+	return false
 end
 
 local function insert_unique(dest_table, value, lookup_table)
@@ -174,9 +172,7 @@ local auto_config_lines = {}
 -- 直连规则显式覆盖远程兜底的缓存、IPv6、测速和双栈优选设置。
 local DIRECT_RULE_OPTIONS = " -enable-cache -address -6 -speed-check-mode ping,tcp:80,tcp:443 -response-mode first-ping -d yes"
 --设置默认 DNS 分组(兜底组)，全局代理模式仍使用远程组。
-local DEFAULT_DNS_GROUP = (USE_DEFAULT_DNS == "direct" and "direct") or
-                          (USE_DEFAULT_DNS == "remote" and "proxy") or
-                          (USE_DEFAULT_DNS == "auto" and AUTO_GROUP)
+local DEFAULT_DNS_GROUP = (USE_DEFAULT_DNS == "direct" and "direct") or (USE_DEFAULT_DNS == "remote" and "proxy") or (USE_DEFAULT_DNS == "auto" and AUTO_GROUP)
 local only_global = (DEFAULT_PROXY_MODE == "proxy" and CHN_LIST == "0" and USE_GFW_LIST == "0") and 1
 if only_global == 1 then
 	DEFAULT_DNS_GROUP = "proxy"

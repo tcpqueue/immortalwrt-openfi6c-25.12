@@ -1,0 +1,9 @@
+#!/bin/sh
+# opkg 卸载/升级前执行（prerm）：先把服务停掉，避免二进制被替换时进程还在跑
+[ -n "$IPKG_INSTROOT" ] && exit 0
+
+if [ -x /etc/init.d/modemd ]; then
+	/etc/init.d/modemd stop 2>/dev/null
+	/etc/init.d/modemd disable 2>/dev/null
+fi
+exit 0

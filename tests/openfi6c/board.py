@@ -54,9 +54,12 @@ class AdaptationTests(unittest.TestCase):
                          current.split('&spi0 {')[1].split('&pio {')[0])
 
     def test_network_defaults(self):
-        path = 'target/linux/mediatek/filogic/base-files/etc/board.d/02_network'
-        self.assertIn('ucidef_set_interfaces_lan_wan "eth0" "usb0"', (ROOT / path).read_text())
-        self.assertTrue((ROOT / 'target/linux/mediatek/filogic/base-files/etc/uci-defaults/96-openfi-usb-wan').exists())
+        base = ROOT / 'target/linux/mediatek/filogic/base-files'
+        source = (base / 'etc/board.d/02_network').read_text()
+        openfi = source.split('openfi,6c|openfi,6c1)', 1)[1].split(';;', 1)[0]
+        self.assertEqual(openfi.strip(), 'ucidef_set_interface_lan "eth0"')
+        self.assertTrue((base / 'etc/uci-defaults/96-openfi-modemd-wan').exists())
+        self.assertFalse((base / 'etc/hotplug.d/net/20-openfi-usb-wan').exists())
 
     def test_official_gpio_and_pwm_ownership(self):
         self.assertEqual(prop('/pwm-fan', 'status'), 'disabled')

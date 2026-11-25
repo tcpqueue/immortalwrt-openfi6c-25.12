@@ -109,6 +109,98 @@ local function non_file_check(file_path, header_content)
 	return false
 end
 
+-- Check every Geo category boundary and sample its first rule to identify the format.
+local function validate_geo_file(file_path, geo_type)
+	if geo_type ~= "geoip" and geo_type ~= "geosite" then return false end
+	local file = io.open(file_path, "rb")
+	if not file then return false end
+	local size = file:seek("end")
+	if not size or size == 0 or not file:seek("set", 0) then file:close(); return false end
+	local pos, rules = 0, 0
+	-- Use the file's read buffer and seek past skipped content without an extra buffer.
+	local function skip(length, limit)
+		assert(length <= limit - pos)
+		pos = pos + length
+		assert(file:seek("set", pos))
+	end
+	-- Without a numeric limit, only validate and skip varints to avoid precision loss for 64-bit attributes.
+	local function varint(limit, maximum)
+		local value, factor = 0, 1
+		for i = 1, 10 do
+			assert(pos < limit)
+			local byte = assert(file:read(1)):byte()
+			pos = pos + 1
+			assert(i < 10 or byte <= 1)
+			if maximum then
+				local digit = byte % 128
+				assert(digit <= math.floor((maximum - value) / factor))
+				value = value + digit * factor
+			end
+			if byte < 128 then return value end
+			factor = factor * 128
+		end
+		error(false)
+	end
+	-- Field definitions: wire type, optional child message type, optional numeric limit.
+	local schema = {
+		list = {{2, geo_type}},
+		geoip = {{2}, {2, "cidr"}, {0}},
+		geosite = {{2}, {2, "domain"}},
+		cidr = {{2}, {0, nil, 4294967295}},
+		domain = {{0, nil, 3}, {2}, {2, "attribute"}},
+		attribute = {{2}, {0}, {0}}
+	}
+	local parse
+	parse = function(kind, limit)
+		local values, entries = {}, 0
+		local is_entry = kind == "geoip" or kind == "geosite"
+		while pos < limit do
+			if is_entry and values[1] and values[1] > 0 and entries > 0 then
+				skip(limit - pos, limit)
+				return
+			end
+			local tag = varint(limit, 4294967295)
+			local field, wire = math.floor(tag / 8), tag % 8
+			local spec = schema[kind][field]
+			assert(field > 0 and (not spec or wire == spec[1]))
+			local value
+			if wire == 0 then
+				value = varint(limit, spec and spec[3])
+			elseif wire == 2 then
+				value = varint(limit, limit - pos)
+				assert(value <= limit - pos)
+				if spec and spec[2] and not (is_entry and entries > 0) then
+					parse(spec[2], pos + value)
+				else
+					skip(value, limit)
+				end
+				if spec and spec[2] then entries = entries + 1 end
+			elseif wire == 1 or wire == 5 then
+				skip(wire == 1 and 8 or 4, limit)
+			else
+				-- Geo files do not use Protobuf group fields.
+				error(false)
+			end
+			if spec then values[field] = value end
+		end
+		if kind == "list" then
+			assert(entries > 0 and rules > 0)
+		elseif kind == "geoip" or kind == "geosite" or kind == "attribute" then
+			assert(values[1] and values[1] > 0)
+		elseif kind == "cidr" then
+			assert(values[1] == 4 or values[1] == 16)
+			assert((values[2] or 0) <= (values[1] == 4 and 32 or 128))
+			rules = rules + 1
+		elseif kind == "domain" then
+			assert(values[2] and values[2] > 0)
+			rules = rules + 1
+		end
+	end
+	local valid = pcall(parse, "list", size)
+	file:close()
+	return valid
+end
+
 local function fetch_geofile(geo_name, geo_type, url)
 	local tmp_path = "/tmp/" .. geo_name
 	local asset_path = asset_location .. geo_name
@@ -116,31 +208,25 @@ local function fetch_geofile(geo_name, geo_type, url)
 	local sha_url = url:gsub((down_filename:gsub("(%W)", "%%%1")), down_filename .. ".sha256sum")
 	local sha_path = tmp_path .. ".sha256sum"
 
-	local function verify_sha256(sha_file)
-		return sys.call("sha256sum -c " .. sha_file .. " > /dev/null 2>&1") == 0
-	end
-
+	local digest
 	local sha_verify, _ = curl(sha_url, sha_path) == 200
 	if sha_verify then
 		local f = io.open(sha_path, "r")
 		if f then
 			local content = f:read("*l")
 			f:close()
-			if content then
-				content = content:gsub("(%x+)%s+.+", "%1  " .. tmp_path)
-				f = io.open(sha_path, "w")
-				if f then
-					f:write(content)
-					f:close()
-				end
+			local hash = content and content:match("^(%x+)%s")
+			if hash and #hash == 64 then
+				digest = "sha256:" .. hash
 			end
 		end
-		if fs.access(asset_path) then
-			sys.call(string.format("cp -f %s %s", asset_path, tmp_path))
-			if verify_sha256(sha_path) then
-				log(1, api.i18n.translatef("%s version is the same and does not need to be updated.", geo_type))
-				return 0
-			end
+		if not digest then
+			log(1, api.i18n.translatef("%s SHA256 verification information is invalid. Update failed.", geo_type))
+			return 1
+		end
+		if fs.access(asset_path) and api.verify_sha256(asset_path, digest) then
+			log(1, api.i18n.translatef("%s version is the same and does not need to be updated.", geo_type))
+			return 0
 		end
 	end
 
@@ -156,7 +242,7 @@ local function fetch_geofile(geo_name, geo_type, url)
 	end
 	if sret_tmp == 200 then
 		if sha_verify then
-			if verify_sha256(sha_path) then
+			if api.verify_sha256(tmp_path, digest) then
 				sys.call(string.format("mkdir -p %s && mv -f %s %s", backup_path, asset_path, backup_path))
 				sys.call(string.format("mkdir -p %s && mv -f %s %s", asset_location, tmp_path, asset_path))
 				reboot = 1
@@ -166,6 +252,10 @@ local function fetch_geofile(geo_name, geo_type, url)
 				return 1
 			end
 		else
+			if not validate_geo_file(tmp_path, geo_type) then
+				log(1, api.i18n.translatef("%s file format verification failed. Update failed.", geo_type))
+				return 1
+			end
 			if fs.access(asset_path) and sys.call(string.format("cmp -s %s %s", tmp_path, asset_path)) == 0 then
 				log(1, api.i18n.translatef("%s version is the same and does not need to be updated.", geo_type))
 				return 0

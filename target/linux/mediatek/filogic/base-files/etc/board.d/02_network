@@ -158,8 +158,8 @@ mediatek_setup_interfaces()
 	zyxel,nwa50ax-pro)
 		ucidef_set_interface_lan "eth0"
 		;;
-	openfi,6c)
-		ucidef_set_interfaces_lan_wan "eth0" "usb0"
+	openfi,6c|openfi,6c1)
+		ucidef_set_interface_lan "eth0"
 		;;
 	viettel,32x6|\
 	wirelesstag,zx7981pd-ubootmod)

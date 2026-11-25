@@ -276,9 +276,9 @@ end
 
 function UrlEncode(szText)
 	if type(szText) ~= "string" then return "" end
-	return szText:gsub("([^%w%-_%.%~])", function(c)
+	return (szText:gsub("([^%w%-_%.%~])", function(c)
 		return string.format("%%%02X", string.byte(c))
-	end)
+	end))
 end
 
 function UrlDecode(szText)
@@ -286,6 +286,35 @@ function UrlDecode(szText)
 	return szText and szText:gsub("%+", " "):gsub("%%(%x%x)", function(h)
 		return string.char(tonumber(h, 16))
 	end) or nil
+end
+
+-- Calculate the MD5 hash of a file.
+function md5_file(path)
+	if type(path) ~= "string" then return "" end
+	local quoted = "'" .. path:gsub("'", "'\\''") .. "'"
+	local out = sys.exec("md5sum " .. quoted)
+	if not out then return "" end
+	return out:sub(1, 32)
+end
+
+-- Calculate the MD5 hash of a string.
+function md5_string(str)
+	if type(str) ~= "string" then return "" end
+	local path = trim(sys.exec("mktemp /tmp/md5.XXXXXX") or "")
+	if path == "" then return "" end
+	local md5 = fs.writefile(path, str) == #str and md5_file(path) or ""
+	fs.unlink(path)
+	return md5
+end
+
+-- Verify the SHA256 hash of a file.
+function verify_sha256(file, digest)
+	if type(digest) ~= "string" then return false end
+	local expected = digest:match("^sha256:(%x+)$")
+	if not expected or #expected ~= 64 then return false end
+	local code, output = exec_call("sha256sum " .. util.shellquote(file))
+	local actual = output:match("^(%x+)%s")
+	return code == 0 and actual ~= nil and actual:lower() == expected:lower()
 end
 
 -- Extract the domain name and port from the URL (no IP address).
@@ -309,9 +338,14 @@ function resolve_domain(domain, dns)
 	address = (address or dns):gsub("^%[(.-)%]$", "%1")
 	port = port or "53"
 	local server = datatypes.ip6addr(address) and ("[" .. address .. "]") or address
+	local dns_servers = {server .. ":" .. port, address .. "#" .. port, "223.5.5.5"}
+	local version = sys.exec("LC_ALL=C busybox nslookup -v 2>&1"):match("BusyBox v(%d+%.%d+%.%d+)")
+	if version and compare_versions(version, "<", "1.35.0") then
+		dns_servers[1], dns_servers[2] = dns_servers[2], dns_servers[1]
+	end
 	local rc, result
-	for _, dns_server in ipairs({server .. ":" .. port, address .. "#" .. port, "223.5.5.5"}) do
-		rc, result = exec_call_as_gid("LC_ALL=C nslookup " .. util.shellquote(domain) .. " " .. util.shellquote(dns_server), DIRECT_GID)
+	for _, dns_server in ipairs(dns_servers) do
+		rc, result = exec_call_as_gid("LC_ALL=C busybox nslookup " .. util.shellquote(domain) .. " " .. util.shellquote(dns_server), DIRECT_GID)
 		local ips, seen, answer = {}, {}, false
 		for line in result:gmatch("[^\r\n]+") do
 			if line:match("^%s*Name:") then answer = true end
@@ -502,7 +536,7 @@ function strToTable(str)
 	if str == nil or type(str) ~= "string" then
 		return {}
 	end
-	
+
 	return loadstring("return " .. str)()
 end
 
@@ -888,13 +922,13 @@ function clone(org)
 			end
 		end
 	end
- 
+
 	local res = {}
 	copy(org, res)
 	return res
 end
 
-local function get_bin_version_cache(file, cmd)
+local function get_bin_version_cache(file, cmd, sb_tags)
 	if file and file ~= "" and fs.access(file) then
 		chmod_755(file)
 		local stat = fs.stat(file)
@@ -903,16 +937,28 @@ local function get_bin_version_cache(file, cmd)
 			-- Use metadata to avoid hashing the entire binary on every lookup.
 			cache_file = CACHE_PATH .. "/binver_" .. table.concat({stat.dev, stat.ino, stat.size, stat.mtime, stat.ctime}, "_")
 			local cached = fs.readfile(cache_file)
-			if cached and trim(cached) ~= "" then
-				return trim(cached)
+			local version = cached and trim(cached:match("^[^\n]*"))
+			if version and version ~= "" then
+				if sb_tags then
+					return version, trim(cached:match("^[^\n]*\n([^\n]*)"))
+				end
+				return version
 			end
 		end
-		local version = sys.exec(string.format("echo -n $(%s %s)", util.shellquote(file), cmd))
+		local version, tags
+		if sb_tags then
+			local output = sys.exec(string.format("%s %s", util.shellquote(file), cmd))
+			version = output:match("^sing%-box%s+version%s+(%S+)") or ""
+			tags = trim(output:match("\nTags:[ \t]*([^\r\n]*)"))
+		else
+			version = sys.exec(string.format("echo -n $(%s %s)", util.shellquote(file), cmd))
+		end
 		if version and version ~= "" then
 			if cache_file then
 				fs.mkdirr(CACHE_PATH)
-				fs.writefile(cache_file, version)
+				fs.writefile(cache_file, sb_tags and (version .. "\n" .. tags .. "\n") or version)
 			end
+			if sb_tags then return version, tags end
 			return version
 		end
 	end
@@ -930,7 +976,14 @@ end
 
 function get_app_version(app_name, file)
 	if file == nil then file = get_app_path(app_name) end
-	return get_bin_version_cache(file, com[app_name].cmd_version)
+	local version = get_bin_version_cache(file, com[app_name].cmd_version, app_name == "sing-box")
+	return version
+end
+
+function get_singbox_tags()
+	local file = get_app_path("sing-box")
+	local _, tags = get_bin_version_cache(file, com["sing-box"].cmd_version, true)
+	return tags or ""
 end
 
 function is_file(path)
@@ -1205,6 +1258,17 @@ local function check_path(app_name)
 	}
 end
 
+local function cache_update_digests(app_name, assets)
+	local digests = {}
+	for _, asset in ipairs(assets) do
+		if asset.browser_download_url and type(asset.digest) == "string" then
+			digests[asset.browser_download_url] = asset.digest
+		end
+	end
+	fs.mkdirr(CACHE_PATH)
+	fs.writefile(CACHE_PATH .. "/update_" .. app_name .. ".json", jsonc.stringify(digests))
+end
+
 function to_check(arch, app_name)
 	local result = check_path(app_name)
 	if result.code ~= 0 then
@@ -1269,6 +1333,7 @@ function to_check(arch, app_name)
 		}
 	end
 
+	cache_update_digests(app_name, {asset})
 	return {
 		code = 0,
 		has_update = has_update,
@@ -1287,6 +1352,12 @@ function to_download(app_name, url, size, task_id, keep_files)
 
 	if not url or url == "" then
 		return {code = 1, error = i18n.translate("Download url is required.")}
+	end
+
+	local digests = jsonc.parse(fs.readfile(CACHE_PATH .. "/update_" .. app_name .. ".json") or "{}")
+	local digest = type(digests) == "table" and digests[url]
+	if type(digest) ~= "string" then
+		return {code = 1, error = i18n.translate("File verification failed.")}
 	end
 
 	if not keep_files then sys.call("/bin/rm -f /tmp/".. app_name .."_download.*") end
@@ -1327,6 +1398,11 @@ function to_download(app_name, url, size, task_id, keep_files)
 		}
 	end
 
+	if not verify_sha256(tmp_file, digest) then
+		exec("/bin/rm", {"-f", tmp_file})
+		return {code = 1, error = i18n.translate("File verification failed.")}
+	end
+
 	return {code = 0, file = tmp_file, zip = com[app_name].zipped }
 end
 
@@ -1337,12 +1413,14 @@ function to_download_progress(app_name, task_id, total_size)
 
 	total_size = tonumber(total_size) or 0
 	local tmp_file = "/tmp/" .. app_name .. "_download." .. task_id
-	local downloaded = tonumber(fs.stat(tmp_file, "size")) or 0
+	local downloaded
 	if app_name == appname then
 		downloaded = 0
 		for part = 1, 5 do
-			downloaded = downloaded + (tonumber(fs.stat(tmp_file .. part, "size")) or 0)
+			downloaded = downloaded + (tonumber((fs.stat(tmp_file .. part, "size"))) or 0)
 		end
+	else
+		downloaded = tonumber((fs.stat(tmp_file, "size"))) or 0
 	end
 	local percent
 	if total_size > 0 then
@@ -1442,11 +1520,6 @@ function to_move(app_name,file)
 		}
 	end
 
-	local flag = sys.call('busybox pgrep -af "passwall2/.*'.. app_name ..'" >/dev/null')
-	if flag == 0 then
-		sys.call("/etc/init.d/passwall2 stop")
-	end
-
 	local old_app_size = 0
 	if fs.access(app_path) then
 		old_app_size = get_file_space(app_path)
@@ -1460,6 +1533,11 @@ function to_move(app_name,file)
 			sys.call(cmd_rm_tmp)
 			return {code = 1, error = i18n.translatef("%s not enough space.", final_dir)}
 		end
+	end
+
+	local flag = sys.call('busybox pgrep -af "passwall2/.*'.. app_name ..'" >/dev/null')
+	if flag == 0 then
+		sys.call("/etc/init.d/passwall2 stop")
 	end
 
 	result = exec("/bin/mv", { "-f", bin_path, app_path }, nil, command_timeout) == 0
@@ -1567,6 +1645,9 @@ function to_check_self()
 		selected[#selected + 1] = found[code]
 	end
 	if not main then return {code = 1, error = i18n.translate("Get remote version info failed.")} end
+	local assets = {main}
+	for _, asset in ipairs(selected) do assets[#assets + 1] = asset end
+	cache_update_digests(appname, assets)
 	return {
 		code = 0, has_update = compare_versions(local_version, "<", remote_version),
 		local_version = local_version, remote_version = remote_version, html_url = release.html_url,

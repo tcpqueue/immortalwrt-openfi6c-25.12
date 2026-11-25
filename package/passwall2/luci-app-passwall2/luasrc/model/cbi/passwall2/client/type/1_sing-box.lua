@@ -33,7 +33,7 @@ local ss_method_old_list = {
 
 local security_list = { "none", "auto", "aes-128-gcm", "chacha20-poly1305", "zero" }
 
-local singbox_tags = luci.sys.exec(singbox_bin .. " version  | grep 'Tags:' | awk '{print $2}'")
+local singbox_tags = api.get_singbox_tags()
 
 local singbox_version = api.get_app_version("sing-box"):match("[^v]+")
 local version_ge_1_14_0 = api.compare_versions(singbox_version, ">=", "1.14.0")
@@ -715,7 +715,7 @@ if singbox_tags:find("with_utls") then
 
 	o = s:option(Value, "reality_publicKey", translate("Public Key"))
 	o:depends({ reality = true })
-	
+
 	o = s:option(Value, "reality_shortId", translate("Short Id"))
 	o:depends({ reality = true })
 end
@@ -768,6 +768,10 @@ if singbox_tags:find("with_wireguard") then
 
 	o = s:option(Value, "wireguard_reserved", translate("Reserved"), translate("Decimal numbers separated by \",\" or Base64-encoded strings."))
 	o:depends({ protocol = "wireguard" })
+
+	o = s:option(Value, "wireguard_keepAlive", translate("Keep Alive"))
+	o.default = "0"
+	o:depends({ protocol = "wireguard" })
 end
 
 -- [[ TCP ]]--
@@ -809,16 +813,6 @@ o:depends({ transport = "ws" })
 o = s:option(Value, "ws_path", translate("WebSocket Path"))
 o.placeholder = "/"
 o:depends({ transport = "ws" })
-
-o = s:option(Flag, "ws_enableEarlyData", translate("Enable early data"))
-o:depends({ transport = "ws" })
-
-o = s:option(Value, "ws_maxEarlyData", translate("Early data length"))
-o.default = "1024"
-o:depends({ ws_enableEarlyData = true })
-
-o = s:option(Value, "ws_earlyDataHeaderName", translate("Early data header name"), translate("Recommended value: Sec-WebSocket-Protocol"))
-o:depends({ ws_enableEarlyData = true })
 
 -- [[ HTTPUpgrade ]]--
 o = s:option(Value, "httpupgrade_host", translate("HTTPUpgrade Host"))

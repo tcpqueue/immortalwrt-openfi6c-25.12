@@ -1,6 +1,6 @@
 # Source
 
 Upstream: https://github.com/Openwrt-Passwall/openwrt-passwall2.git
-Commit: e3788855d3cb3ddc3f4027ea2480d7c19019f033
+Commit: ccae1fd66e0b6528150d80fe6834b20ed2030db6
 
 Direct package source snapshot; no feed entry or nested Git repository.

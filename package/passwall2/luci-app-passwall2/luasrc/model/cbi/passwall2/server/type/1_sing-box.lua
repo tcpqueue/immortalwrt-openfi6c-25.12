@@ -27,7 +27,7 @@ s.type_name = type_name
 s.option_prefix = "singbox_"
 api.set_type_cbi(s)
 
-local singbox_tags = luci.sys.exec(singbox_bin .. " version  | grep 'Tags:' | awk '{print $2}'")
+local singbox_tags = api.get_singbox_tags()
 
 local local_version = api.get_app_version("sing-box"):match("[^v]+")
 local version_ge_1_14_0 = api.compare_versions(local_version, ">=", "1.14.0")
@@ -304,10 +304,10 @@ if singbox_tags:find("with_utls") then
 	o:depends({ protocol = "vless", tls = true })
 	o:depends({ protocol = "trojan", tls = true })
 	o:depends({ protocol = "anytls", tls = true })
-	
+
 	o = s:option(Value, "reality_private_key", translate("Private Key"))
 	o:depends({ reality = true })
-	
+
 	o = s:option(Value, "reality_shortId", translate("Short Id"))
 	o:depends({ reality = true })
 
@@ -457,6 +457,10 @@ o = s:option(Value, "ws_host", translate("WebSocket Host"))
 o:depends({ transport = "ws" })
 
 o = s:option(Value, "ws_path", translate("WebSocket Path"))
+o:depends({ transport = "ws" })
+
+o = s:option(Value, "ws_earlyDataHeaderName", translate("Early data header name"), translate("Recommended value: Sec-WebSocket-Protocol"))
+o.placeholder = "Sec-WebSocket-Protocol"
 o:depends({ transport = "ws" })
 
 -- [[ HTTPUpgrade ]]--

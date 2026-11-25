@@ -1,0 +1,52 @@
+#!/bin/sh
+# luci-app-modemd-pro 卸载后：同样清一次菜单缓存，菜单立刻消失而不是等到重启
+[ -n "$IPKG_INSTROOT" ] && exit 0
+
+rm -f /tmp/luci-indexcache /tmp/luci-indexcache.json 2>/dev/null
+rm -rf /tmp/luci-modulecache 2>/dev/null
+
+# 撤掉注入到主题模板/样式表/luci.js 里的痕迹（≤ 0.1.49-1 的老版本 + 现在这一版）。
+#
+# ⚠️⚠️ 两条铁律（2026-10-01 事故换来的）：
+#   1. **只动确实带我们标记的文件**：无差别改写别人的文件是禁忌
+#      （老 postinst 的无条件 `sed -i` 把 argon 的 header.htm 写截断，丢掉 `#mainmenu` 容器
+#       ⇒ 整个后台一个菜单都不显示）；
+#   2. **不用 `sed -i`**：一律 `grep -v 标记 > 临时文件` 再 `mv` —— 任何中途失败都不会
+#      破坏原文件（`sed -i` 是“写临时文件再改名”，一旦中途被打断就会留下残缺的正式文件）。
+#
+# 卸载后想彻底恢复注入前的模板，可以用安装时留下的备份：
+#   cp -f /etc/modemd/luci-theme-header.orig_<模板路径> <主题模板路径>
+__theme=$(uci -q get luci.main.mediaurlbase 2>/dev/null | sed 's|.*/||')
+[ -z "$__theme" ] && __theme=bootstrap
+
+__strip() {
+	# $1 = 文件；把带我们标记的行摘掉（只在真的有标记时才动）
+	[ -f "$1" ] || return 0
+	grep -q 'modemd-pro-' "$1" 2>/dev/null || return 0
+	if grep -v 'modemd-pro-widget:begin' "$1" 2>/dev/null | grep -v 'modemd-pro-menu-icon:begin' \
+			> "$1.modemd-tmp" 2>/dev/null && [ -s "$1.modemd-tmp" ]; then
+		mv "$1.modemd-tmp" "$1" 2>/dev/null || rm -f "$1.modemd-tmp" 2>/dev/null
+	fi
+}
+# ⚠️ 不要 `sed -i`：菜单图标那段是多行的，用 grep -v 只能删单行标记 —— 下面用 awk 按标记范围删，
+#    同样走“临时文件 + mv”，可中断不出事。
+__strip_block() {
+	[ -f "$1" ] || return 0
+	grep -q 'modemd-pro-menu-icon:begin' "$1" 2>/dev/null || return 0
+	awk '/modemd-pro-menu-icon:begin/{skip=1} !skip{print} /modemd-pro-menu-icon:end/{skip=0}' "$1" > "$1.modemd-tmp" 2>/dev/null &&
+		[ -s "$1.modemd-tmp" ] && mv "$1.modemd-tmp" "$1" 2>/dev/null
+	rm -f "$1.modemd-tmp" 2>/dev/null
+}
+
+for __f in $(grep -rl 'modemd-pro-menu-icon:begin' /www/luci-static/$__theme 2>/dev/null); do
+	__strip_block "$__f"
+done
+for __f in $(grep -rl 'modemd-pro-widget:begin' \
+		/usr/lib/lua/luci/view/themes /usr/share/ucode/luci/template /usr/share/luci/template \
+		/www/luci-static/resources 2>/dev/null); do
+	__strip "$__f"
+done
+
+# 缓存清了菜单立刻消失，不用等重启（⚠️ 不动 rpcd：重载它会把所有登录会话踢掉）
+rm -f /tmp/luci-indexcache* 2>/dev/null
+exit 0
